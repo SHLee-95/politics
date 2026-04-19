@@ -4,18 +4,36 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>PoliBot Subscription</title>
+  <style>
+    body{font-family:Arial,sans-serif;background:#f8fafc;margin:0;padding:24px;color:#0f172a}
+    .card{max-width:560px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:24px}
+    h1{font-size:22px;margin:0 0 8px}
+    p{line-height:1.55}
+    label{display:block;margin:14px 0 6px;font-weight:600}
+    input{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px}
+    button{margin-top:18px;background:#1d4ed8;color:#fff;border:none;padding:10px 14px;border-radius:8px;font-weight:700;cursor:pointer}
+    .sub{color:#475569;font-size:13px}
+  </style>
 </head>
 <body>
-  <h1>정치학 브리핑 구독 / Subscribe</h1>
-  <p>이메일만 입력하면 바로 접수됩니다.</p>
-  <form action="https://formsubmit.co/poliscibot@gmail.com" method="POST">
-    <input type="hidden" name="_subject" value="PoliBot Subscribe Request" />
-    <input type="hidden" name="_template" value="table" />
-    <input type="hidden" name="_captcha" value="false" />
-    <input type="hidden" name="_next" value="./subscribe_success.html" />
-    <input type="hidden" name="language" value="ko" />
-    <input name="email" type="email" required placeholder="name@example.com" />
-    <button type="submit">구독 신청 / Submit</button>
-  </form>
+  <div class="card">
+    <h1>정치학 브리핑 구독 / Subscribe</h1>
+    <p class="sub">이메일만 입력하면 바로 접수됩니다. / Enter only your email to subscribe.</p>
+
+    <form action="https://formsubmit.co/poliscibot@gmail.com" method="POST">
+      <input type="hidden" name="_subject" value="PoliBot Subscribe Request" />
+      <input type="hidden" name="_template" value="table" />
+      <input type="hidden" name="_captcha" value="false" />
+      <input type="hidden" name="_next" value="./subscribe_success.html" />
+      <input type="hidden" name="language" value="ko" />
+
+      <label for="email">이메일 / Email</label>
+      <input id="email" name="email" type="email" required placeholder="name@example.com" />
+
+      <button type="submit">구독 신청 / Submit</button>
+    </form>
+
+    <p class="sub" style="margin-top:14px;">제출된 요청은 자동으로 구독 리스트에 반영됩니다. / Submitted requests are automatically added to the subscriber list.</p>
+  </div>
 </body>
 </html>
