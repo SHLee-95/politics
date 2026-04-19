@@ -48,6 +48,21 @@ JOURNALS = [
     {"name": "Journal of Democracy",                     "issn": "1045-5736"},
     {"name": "Democratization",                          "issn": "1351-0347"},
     {"name": "Party Politics",                           "issn": "1354-0688"},
+    {"name": "European Journal of International Relations", "issn": "1354-0661"},
+    {"name": "Conflict Management and Peace Science",    "issn": "0738-8942"},
+    {"name": "Journal of Global Security Studies",       "issn": "2057-3170"},
+    {"name": "Political Psychology",                     "issn": "0162-895X"},
+    {"name": "Perspectives on Politics",                 "issn": "1537-5927"},
+    {"name": "Contemporary Security Policy",             "issn": "1352-3260"},
+    {"name": "International Studies Review",             "issn": "1521-9488"},
+    {"name": "Foreign Policy Analysis",                  "issn": "1743-8586"},
+    {"name": "International Interactions",               "issn": "0305-0629"},
+    {"name": "International Studies Perspectives",       "issn": "1528-3577"},
+    {"name": "International Political Science Review",   "issn": "0192-5121"},
+    {"name": "Journal of European Public Policy",        "issn": "1350-1763"},
+    {"name": "West European Politics",                   "issn": "0140-2382"},
+    {"name": "Political Behavior",                       "issn": "0190-9320"},
+    {"name": "Legislative Studies Quarterly",            "issn": "0362-9805"},
 ]
 
 KEYWORDS = [
