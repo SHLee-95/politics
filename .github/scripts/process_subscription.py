@@ -65,7 +65,7 @@ html = f"""<!DOCTYPE html>
 try:
     msg = MIMEMultipart("alternative")
     msg["Subject"] = "[polibot] 구독이 완료되었습니다 ✅"
-    msg["From"] = f"polibot <{GMAIL_USER}>"
+    msg["From"] = f"Pol-Sci Journal Bot <{GMAIL_USER}>"
     msg["To"] = email
     msg.attach(MIMEText(html, "html", "utf-8"))
 

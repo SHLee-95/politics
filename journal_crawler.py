@@ -484,7 +484,7 @@ def send_email(subject: str, html_body: str, recipients: list):
         for recipient in recipients:
             msg = MIMEMultipart("alternative")
             msg["Subject"] = subject
-            msg["From"] = f"polibot <{GMAIL_USER}>"
+            msg["From"] = f"Pol-Sci Journal Bot <{GMAIL_USER}>"
             msg["To"] = recipient
             msg.attach(MIMEText(html_body, "html", "utf-8"))
             server.sendmail(GMAIL_USER, recipient, msg.as_string())
