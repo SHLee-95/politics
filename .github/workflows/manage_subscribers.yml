@@ -1,0 +1,68 @@
+name: Manage Subscribers
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  subscribe:
+    if: contains(github.event.issue.labels.*.name, 'subscription')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Process subscription
+        id: process
+        env:
+          GMAIL_PASSWORD: ${{ secrets.GMAIL_PASSWORD }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: python .github/scripts/process_subscription.py
+
+      - name: Commit updated subscribers
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add subscribers.json
+          git diff --cached --quiet || git commit -m "chore: add subscriber from issue #${{ github.event.issue.number }}"
+          git push
+
+      - name: Close issue with success comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const email = process.env.EMAIL;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `✅ **구독이 완료되었습니다!**\n\n**${email}** 으로 매일 새벽 2시(Eastern) 비교정치학·국제정치학 논문 브리핑이 발송됩니다.\n\n구독 취소를 원하시면 이 이슈에 \`unsubscribe\` 라고 댓글을 남겨주세요.`
+            });
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              state: 'closed'
+            });
+        env:
+          EMAIL: ${{ steps.process.outputs.email }}
+
+  unsubscribe:
+    if: "!contains(github.event.issue.labels.*.name, 'subscription')"
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Not a subscription issue, skipping."

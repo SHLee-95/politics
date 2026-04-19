@@ -1,0 +1,20 @@
+name: 📬 구독 신청
+description: 비교정치학·국제정치학 논문 브리핑 이메일을 구독합니다
+title: "Subscribe: "
+labels: ["subscription"]
+body:
+  - type: input
+    id: email
+    attributes:
+      label: 이메일 주소
+      description: 브리핑을 받을 이메일을 입력해 주세요
+      placeholder: your@email.com
+    validations:
+      required: true
+  - type: checkboxes
+    id: agree
+    attributes:
+      label: 동의
+      options:
+        - label: 매일 새벽 2시(Eastern) 논문 브리핑 이메일 수신에 동의합니다
+          required: true
