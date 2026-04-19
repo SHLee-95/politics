@@ -23,7 +23,7 @@ OUTPUT_DIR = Path("output md files")
 SEEN_DOIS_FILE = Path("seen_dois.json")
 SUBSCRIBERS_FILE = Path("subscribers.json")
 FETCH_PER_JOURNAL = 10
-SAMPLE_PER_JOURNAL = 1
+SAMPLE_PER_JOURNAL = 2
 
 JOURNALS = [
     {"name": "American Political Science Review",        "issn": "0003-0554"},
