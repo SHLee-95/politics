@@ -1,0 +1,41 @@
+name: Daily Political Science Journal Crawler
+
+on:
+  schedule:
+    # 매일 새벽 2시 Eastern (EDT: UTC-4 → UTC 06:00, EST: UTC-5 → UTC 07:00)
+    - cron: '0 6 * * *'   # EDT (여름, 3월~11월)
+    # - cron: '0 7 * * *' # EST (겨울, 11월~3월) — 시즌별 주석 전환
+  workflow_dispatch:       # 수동 실행 버튼
+
+permissions:
+  contents: write
+
+jobs:
+  crawl-and-email:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run journal crawler
+        env:
+          GMAIL_PASSWORD: ${{ secrets.GMAIL_PASSWORD }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python journal_crawler.py
+
+      - name: Commit and push report
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "output md files/" seen_dois.json || true
+          git diff --cached --quiet || git commit -m "chore: add report $(date +'%Y-%m-%d')"
+          git push
