@@ -15,10 +15,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-GMAIL_USER = "shlee8481@gmail.com"
+GMAIL_USER = "poliscibot@gmail.com"
 GMAIL_PASSWORD = os.environ.get("GMAIL_PASSWORD", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-RECIPIENT_EMAIL = "shlee8481@gmail.com"
+RECIPIENT_EMAIL = "slee275@buffalo.edu"
 
 OUTPUT_DIR = Path("output md files")
 SEEN_DOIS_FILE = Path("seen_dois.json")
