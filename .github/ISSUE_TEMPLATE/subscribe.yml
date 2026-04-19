@@ -1,13 +1,13 @@
 name: 📬 구독 신청
 description: 비교정치학·국제정치학 논문 브리핑 이메일을 구독합니다
-title: "Subscribe: your@email.com"
+title: "Subscribe: name@email.com"
 labels: ["subscription"]
 body:
   - type: markdown
     attributes:
       value: |
         **제목의 `your@email.com` 부분을 본인 이메일로 바꿔주세요.**
-        예) `Subscribe: slee275@buffalo.edu`
+        예) `Subscribe: name@gmail.com`
   - type: checkboxes
     id: agree
     attributes:
