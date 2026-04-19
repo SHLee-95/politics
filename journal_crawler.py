@@ -22,8 +22,8 @@ RECIPIENT_EMAIL = "slee275@buffalo.edu"
 OUTPUT_DIR = Path("output md files")
 SEEN_DOIS_FILE = Path("seen_dois.json")
 SUBSCRIBERS_FILE = Path("subscribers.json")
-FETCH_PER_JOURNAL = 15
-SAMPLE_PER_JOURNAL = 3
+FETCH_PER_JOURNAL = 10
+SAMPLE_PER_JOURNAL = 1
 
 JOURNALS = [
     {"name": "American Political Science Review",        "issn": "0003-0554"},
