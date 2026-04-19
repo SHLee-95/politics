@@ -333,7 +333,7 @@ def build_html_email(summary: str, papers: list, today_str: str) -> str:
 def send_email(subject: str, html_body: str):
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"] = GMAIL_USER
+    msg["From"] = f"polibot <{GMAIL_USER}>"
     msg["To"] = RECIPIENT_EMAIL
     msg.attach(MIMEText(html_body, "html", "utf-8"))
 
