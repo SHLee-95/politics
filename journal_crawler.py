@@ -207,10 +207,17 @@ def generate_summary(papers: list) -> str:
 ## 💡 주요 발견 및 연구 동향
 - 오늘 논문들에서 발견되는 공통 연구 트렌드나 주목할 만한 발견 3~5가지를 bullet point로
 
-## ⭐ 특히 주목할 논문 (TOP 3)
-가장 중요하거나 흥미로운 논문 3편을 골라 각각:
+## 🌐 주목할 논문 — 국제정치 (TOP 3)
+국제관계, 외교, 안보, 전쟁, 국제기구, 무역, 핵 등 국제정치 분야에서 가장 중요한 논문 3편:
+각 논문마다:
 - APSA 스타일 완전 인용 (예: Smith, John, and Jane Doe. 2024. "Title." *Journal Name* 12(3): 45–67.)
-  저자 정보가 없는 경우 제공된 정보 최대한 활용할 것
+- 핵심 주장 또는 발견 (2~3문장)
+- 이 논문이 중요한 이유
+
+## 🗳️ 주목할 논문 — 비교정치 (TOP 3)
+민주주의, 권위주의, 선거, 정당, 국내 제도, 사회운동 등 비교정치 분야에서 가장 중요한 논문 3편:
+각 논문마다:
+- APSA 스타일 완전 인용 (예: Smith, John, and Jane Doe. 2024. "Title." *Journal Name* 12(3): 45–67.)
 - 핵심 주장 또는 발견 (2~3문장)
 - 이 논문이 중요한 이유
 
@@ -365,12 +372,16 @@ def build_html_email(summary: str, papers: list, today_str: str) -> str:
         url = p.get("URL", f"https://doi.org/{doi}")
         paper_cards += f"""
         <tr>
-          <td style="padding:12px 0;border-bottom:1px solid #f1f5f9;">
-            <a href="{url}" style="color:#2563eb;text-decoration:none;font-size:13px;
-               font-weight:600;line-height:1.5;display:block;margin-bottom:3px;">{title}</a>
-            <span style="color:#94a3b8;font-size:12px;">{authors} ({year})</span>
-            <span style="color:#cbd5e1;font-size:12px;"> &nbsp;·&nbsp; </span>
-            <span style="color:#64748b;font-size:12px;font-style:italic;">{journal}</span>
+          <td style="padding:14px 0;border-bottom:1px solid #f1f5f9;">
+            <a href="{url}" style="color:#1d4ed8;text-decoration:none;font-size:14px;
+               font-weight:600;line-height:1.6;display:block;margin-bottom:5px;">{title}</a>
+            <div>
+              <span style="color:#64748b;font-size:13px;">{authors} &nbsp;({year})</span>
+            </div>
+            <div style="margin-top:3px;">
+              <span style="display:inline-block;background:#eff6ff;color:#1d4ed8;font-size:11px;
+                font-weight:600;padding:2px 8px;border-radius:4px;">{journal}</span>
+            </div>
           </td>
         </tr>"""
 
@@ -428,7 +439,7 @@ def build_html_email(summary: str, papers: list, today_str: str) -> str:
   <!-- FOOTER -->
   <tr><td style="padding:16px 0;text-align:center;">
     <p style="margin:0;color:#94a3b8;font-size:11px;">
-      polibot &nbsp;·&nbsp; Powered by Groq (Llama 3.3 70B) &nbsp;·&nbsp; Crossref API
+      Pol-Sci Journal Bot &nbsp;·&nbsp; Powered by Groq (Llama 3.3 70B) &nbsp;·&nbsp; Crossref API
     </p>
   </td></tr>
 
