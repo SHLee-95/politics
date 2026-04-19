@@ -170,7 +170,7 @@ def build_paper_list_text(papers: list) -> str:
             f"{i}. **{title}**\n"
             f"   - Authors: {authors} ({year})\n"
             f"   - Journal: {journal}\n"
-            f"   - Abstract: {abstract[:400]}...\n"
+            f"   - Abstract: {abstract[:200]}...\n"
             f"   - URL: {url}\n"
         )
     return "\n".join(lines)
@@ -213,7 +213,7 @@ def generate_summary(papers: list) -> str:
 """
 
     response = client.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-1.5-flash",
         contents=prompt,
         config=types.GenerateContentConfig(
             temperature=0.4,
