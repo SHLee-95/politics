@@ -179,6 +179,7 @@ def format_year(item: dict) -> str:
 
 
 def build_paper_list_text(papers: list) -> str:
+    """Full list for email/markdown."""
     lines = []
     for i, p in enumerate(papers, 1):
         title = (p.get("title") or ["No title"])[0]
@@ -192,9 +193,21 @@ def build_paper_list_text(papers: list) -> str:
             f"{i}. **{title}**\n"
             f"   - Authors: {authors} ({year})\n"
             f"   - Journal: {journal}\n"
-            f"   - Abstract: {abstract[:400]}...\n"
+            f"   - Abstract: {abstract[:300]}...\n"
             f"   - URL: {url}\n"
         )
+    return "\n".join(lines)
+
+
+def build_prompt_paper_list(papers: list) -> str:
+    """Compact list for AI prompt — titles/authors/journal only to save tokens."""
+    lines = []
+    for i, p in enumerate(papers, 1):
+        title = (p.get("title") or ["No title"])[0]
+        authors = format_authors(p)
+        year = format_year(p)
+        journal = p.get("_journal_name", "")
+        lines.append(f"{i}. {title} / {authors} ({year}) / {journal}")
     return "\n".join(lines)
 
 
@@ -203,7 +216,7 @@ def generate_summary(papers: list) -> str:
         return "수집된 논문이 없습니다."
 
     client = Groq(api_key=GROQ_API_KEY)
-    paper_text = build_paper_list_text(papers)
+    paper_text = build_prompt_paper_list(papers)
     today = datetime.now().strftime("%Y년 %m월 %d일")
 
     prompt = f"""당신은 비교정치학 및 국제정치학 전문 연구자입니다.
