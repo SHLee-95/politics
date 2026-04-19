@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>PoliBot Subscription</title>
+</head>
+<body>
+  <h1>정치학 브리핑 구독 / Subscribe</h1>
+  <p>이메일만 입력하면 바로 접수됩니다.</p>
+  <form action="https://formsubmit.co/poliscibot@gmail.com" method="POST">
+    <input type="hidden" name="_subject" value="PoliBot Subscribe Request" />
+    <input type="hidden" name="_template" value="table" />
+    <input type="hidden" name="_captcha" value="false" />
+    <input type="hidden" name="_next" value="./subscribe_success.html" />
+    <input type="hidden" name="language" value="ko" />
+    <input name="email" type="email" required placeholder="name@example.com" />
+    <button type="submit">구독 신청 / Submit</button>
+  </form>
+</body>
+</html>
