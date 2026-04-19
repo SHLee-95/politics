@@ -9,15 +9,14 @@ from email.mime.text import MIMEText
 from pathlib import Path
 
 from habanero import Crossref
-from google import genai
-from google.genai import types
+from groq import Groq
 from dotenv import load_dotenv
 
 load_dotenv()
 
 GMAIL_USER = "poliscibot@gmail.com"
 GMAIL_PASSWORD = os.environ.get("GMAIL_PASSWORD", "")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 RECIPIENT_EMAIL = "slee275@buffalo.edu"
 
 OUTPUT_DIR = Path("output md files")
@@ -180,7 +179,7 @@ def generate_summary(papers: list) -> str:
     if not papers:
         return "수집된 논문이 없습니다."
 
-    client = genai.Client(api_key=GEMINI_API_KEY)
+    client = Groq(api_key=GROQ_API_KEY)
     paper_text = build_paper_list_text(papers)
     today = datetime.now().strftime("%Y년 %m월 %d일")
 
@@ -212,15 +211,13 @@ def generate_summary(papers: list) -> str:
 각 섹션은 간결하고 핵심만 담아주세요. 학술적이되 읽기 쉽게 작성해 주세요.
 """
 
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            temperature=0.4,
-            max_output_tokens=3000,
-        ),
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.4,
+        max_tokens=3000,
     )
-    return response.text
+    return response.choices[0].message.content
 
 
 def build_reference_list(papers: list) -> str:
