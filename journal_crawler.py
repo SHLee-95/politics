@@ -293,8 +293,69 @@ def save_markdown(papers: list, summary: str) -> Path:
     return filepath
 
 
+def markdown_to_html(text: str) -> str:
+    lines = text.split("\n")
+    html_lines = []
+    in_ul = False
+
+    for line in lines:
+        # h2
+        if line.startswith("## "):
+            if in_ul:
+                html_lines.append("</ul>")
+                in_ul = False
+            content = re.sub(r"\*\*(.*?)\*\*", r"<strong>\1</strong>", line[3:])
+            html_lines.append(
+                f'<h2 style="font-size:15px;font-weight:700;color:#1e293b;'
+                f'margin:24px 0 8px;padding-bottom:6px;border-bottom:1px solid #e2e8f0;">'
+                f'{content}</h2>'
+            )
+        # h3
+        elif line.startswith("### "):
+            if in_ul:
+                html_lines.append("</ul>")
+                in_ul = False
+            content = re.sub(r"\*\*(.*?)\*\*", r"<strong>\1</strong>", line[4:])
+            html_lines.append(
+                f'<h3 style="font-size:13px;font-weight:700;color:#334155;margin:16px 0 4px;">'
+                f'{content}</h3>'
+            )
+        # bullet
+        elif line.startswith("- "):
+            if not in_ul:
+                html_lines.append('<ul style="margin:6px 0 6px 0;padding-left:20px;">')
+                in_ul = True
+            content = re.sub(r"\*\*(.*?)\*\*", r"<strong>\1</strong>", line[2:])
+            content = re.sub(r"\*(.*?)\*", r"<em>\1</em>", content)
+            html_lines.append(f'<li style="margin-bottom:5px;color:#475569;line-height:1.6;">{content}</li>')
+        # empty line
+        elif line.strip() == "":
+            if in_ul:
+                html_lines.append("</ul>")
+                in_ul = False
+            html_lines.append('<div style="height:8px;"></div>')
+        # normal paragraph
+        else:
+            if in_ul:
+                html_lines.append("</ul>")
+                in_ul = False
+            content = re.sub(r"\*\*(.*?)\*\*", r"<strong>\1</strong>", line)
+            content = re.sub(r"\*(.*?)\*", r"<em>\1</em>", content)
+            if content.strip():
+                html_lines.append(
+                    f'<p style="margin:4px 0;color:#475569;line-height:1.7;">{content}</p>'
+                )
+
+    if in_ul:
+        html_lines.append("</ul>")
+
+    return "\n".join(html_lines)
+
+
 def build_html_email(summary: str, papers: list, today_str: str) -> str:
-    paper_rows = ""
+    summary_html = markdown_to_html(summary)
+
+    paper_cards = ""
     for p in papers:
         title = (p.get("title") or ["No title"])[0]
         journal = p.get("_journal_name", "")
@@ -302,39 +363,78 @@ def build_html_email(summary: str, papers: list, today_str: str) -> str:
         year = format_year(p)
         doi = p.get("DOI", "")
         url = p.get("URL", f"https://doi.org/{doi}")
-        paper_rows += f"""
+        paper_cards += f"""
         <tr>
-          <td style="padding:8px;border-bottom:1px solid #eee;">
-            <a href="{url}" style="color:#1a73e8;text-decoration:none;font-weight:bold;">{title}</a><br>
-            <small style="color:#666;">{authors} ({year}) — <em>{journal}</em></small>
+          <td style="padding:12px 0;border-bottom:1px solid #f1f5f9;">
+            <a href="{url}" style="color:#2563eb;text-decoration:none;font-size:13px;
+               font-weight:600;line-height:1.5;display:block;margin-bottom:3px;">{title}</a>
+            <span style="color:#94a3b8;font-size:12px;">{authors} ({year})</span>
+            <span style="color:#cbd5e1;font-size:12px;"> &nbsp;·&nbsp; </span>
+            <span style="color:#64748b;font-size:12px;font-style:italic;">{journal}</span>
           </td>
         </tr>"""
 
-    summary_html = summary.replace("\n", "<br>").replace("##", "<strong>").replace("**", "<b>")
+    badge_style = (
+        "display:inline-block;background:#dbeafe;color:#1d4ed8;"
+        "font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;margin-right:6px;"
+    )
 
     return f"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 </head>
-<body style="font-family:Arial,sans-serif;max-width:700px;margin:auto;background:#f9f9f9;padding:20px;">
-  <div style="background:#1a237e;color:white;padding:20px;border-radius:8px 8px 0 0;text-align:center;">
-    <h1 style="margin:0;font-size:22px;">🌏 비교정치학·국제정치학 논문 브리핑</h1>
-    <p style="margin:5px 0 0;">{today_str} | {len(papers)}편 수집</p>
-  </div>
-  <div style="background:white;padding:20px;border:1px solid #ddd;">
-    <h2 style="color:#1a237e;border-bottom:2px solid #1a237e;padding-bottom:5px;">AI 요약 브리핑</h2>
-    <div style="line-height:1.7;color:#333;">{summary_html}</div>
-  </div>
-  <div style="background:white;padding:20px;border:1px solid #ddd;margin-top:10px;">
-    <h2 style="color:#1a237e;border-bottom:2px solid #1a237e;padding-bottom:5px;">수집 논문 목록</h2>
-    <table style="width:100%;border-collapse:collapse;">{paper_rows}
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 0;">
+<tr><td align="center">
+<table width="620" cellpadding="0" cellspacing="0" style="max-width:620px;width:100%;">
+
+  <!-- HEADER -->
+  <tr><td style="background:#0f172a;border-radius:12px 12px 0 0;padding:28px 32px;text-align:center;">
+    <p style="margin:0 0 6px;color:#94a3b8;font-size:11px;letter-spacing:2px;text-transform:uppercase;">
+      Daily Briefing
+    </p>
+    <h1 style="margin:0 0 8px;color:#f8fafc;font-size:20px;font-weight:700;line-height:1.3;">
+      비교정치학 · 국제정치학 논문 브리핑
+    </h1>
+    <p style="margin:0;color:#64748b;font-size:12px;">{today_str}</p>
+    <div style="margin-top:14px;">
+      <span style="{badge_style}">{len(papers)}편 수집</span>
+      <span style="{badge_style}">{len(set(p.get('_journal_name','') for p in papers))}개 저널</span>
+    </div>
+  </td></tr>
+
+  <!-- SUMMARY -->
+  <tr><td style="background:#ffffff;padding:28px 32px;">
+    <p style="margin:0 0 16px;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;
+       color:#94a3b8;font-weight:600;">AI 요약 브리핑</p>
+    {summary_html}
+  </td></tr>
+
+  <!-- DIVIDER -->
+  <tr><td style="background:#ffffff;padding:0 32px;">
+    <hr style="border:none;border-top:1px solid #e2e8f0;margin:0;">
+  </td></tr>
+
+  <!-- PAPER LIST -->
+  <tr><td style="background:#ffffff;padding:24px 32px 28px;border-radius:0 0 12px 12px;">
+    <p style="margin:0 0 14px;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;
+       color:#94a3b8;font-weight:600;">수집 논문 목록</p>
+    <table width="100%" cellpadding="0" cellspacing="0">{paper_cards}
     </table>
-  </div>
-  <div style="text-align:center;color:#aaa;font-size:12px;margin-top:15px;">
-    Generated by Journal Crawler · Powered by Groq (Llama 3.3 70B)
-  </div>
+  </td></tr>
+
+  <!-- FOOTER -->
+  <tr><td style="padding:16px 0;text-align:center;">
+    <p style="margin:0;color:#94a3b8;font-size:11px;">
+      polibot &nbsp;·&nbsp; Powered by Groq (Llama 3.3 70B) &nbsp;·&nbsp; Crossref API
+    </p>
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
 </body>
 </html>"""
 
