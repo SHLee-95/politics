@@ -10,10 +10,12 @@ SUBSCRIBERS_FILE = Path("subscribers.json")
 GMAIL_USER = "poliscibot@gmail.com"
 GMAIL_PASSWORD = os.environ.get("GMAIL_PASSWORD", "")
 
+issue_title = os.environ.get("ISSUE_TITLE", "")
 issue_body = os.environ.get("ISSUE_BODY", "")
 
-# 이슈 본문에서 이메일 추출
-email_match = re.search(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", issue_body)
+# 제목에서 먼저 이메일 추출, 없으면 본문에서
+email_match = re.search(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", issue_title) or \
+              re.search(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", issue_body)
 if not email_match:
     print("No email found in issue body.")
     with open(os.environ.get("GITHUB_OUTPUT", "/dev/null"), "a") as f:

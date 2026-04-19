@@ -29,6 +29,7 @@ jobs:
         id: process
         env:
           GMAIL_PASSWORD: ${{ secrets.GMAIL_PASSWORD }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_BODY: ${{ github.event.issue.body }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: python .github/scripts/process_subscription.py
