@@ -18,16 +18,22 @@
     .lang-btn{flex:1;text-align:center;padding:9px;border-radius:8px;font-size:13px;font-weight:600;color:#64748b;cursor:pointer;transition:all .15s;user-select:none}
     .lang-btn.active{background:#fff;color:#0f172a;box-shadow:0 1px 4px rgba(0,0,0,.12)}
     .field-label{font-size:13px;font-weight:600;color:#334155;margin-bottom:6px}
-    .field-sub{font-size:12px;color:#94a3b8;margin-bottom:8px}
     input[type=email]{width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:14px;color:#0f172a;outline:none;transition:border .15s}
     input[type=email]:focus{border-color:#3b82f6}
+    input[type=email].error{border-color:#ef4444}
     .btn{display:block;width:100%;margin-top:20px;background:#0f172a;color:#fff;border:none;padding:14px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;transition:background .15s}
-    .btn:hover{background:#1e293b}
+    .btn:hover:not(:disabled){background:#1e293b}
+    .btn:disabled{background:#94a3b8;cursor:not-allowed}
     .note{color:#94a3b8;font-size:12px;line-height:1.6;margin-top:16px;text-align:center}
     .stats{display:flex;gap:10px;margin-bottom:24px}
     .stat{flex:1;background:#f8fafc;border-radius:10px;padding:12px;text-align:center}
     .stat-num{font-size:18px;font-weight:800;color:#0f172a}
     .stat-label{font-size:11px;color:#94a3b8;margin-top:2px}
+    .success-box{text-align:center;padding:20px 0}
+    .success-icon{font-size:48px;margin-bottom:12px}
+    .success-title{font-size:18px;font-weight:800;color:#0f172a;margin-bottom:8px}
+    .success-desc{font-size:13px;color:#64748b;line-height:1.6}
+    .err-msg{color:#ef4444;font-size:12px;margin-top:8px;display:none}
   </style>
 </head>
 <body>
@@ -39,25 +45,35 @@
     </div>
 
     <div class="card">
-      <div class="stats">
-        <div class="stat"><div class="stat-num">37</div><div class="stat-label">Journals</div></div>
-        <div class="stat"><div class="stat-num">9AM</div><div class="stat-label">Eastern Daily</div></div>
-        <div class="stat"><div class="stat-num">AI</div><div class="stat-label">Groq Powered</div></div>
+      <div id="form-area">
+        <div class="stats">
+          <div class="stat"><div class="stat-num">37</div><div class="stat-label">Journals</div></div>
+          <div class="stat"><div class="stat-num">9AM</div><div class="stat-label">Eastern Daily</div></div>
+          <div class="stat"><div class="stat-num">AI</div><div class="stat-label">Groq Powered</div></div>
+        </div>
+
+        <div class="lang-label">수신 언어 / Language</div>
+        <div class="lang-toggle">
+          <div class="lang-btn active" id="btn-ko" onclick="setLang('ko')">한국어</div>
+          <div class="lang-btn" id="btn-en" onclick="setLang('en')">English</div>
+        </div>
+
+        <div class="field-label">이메일 주소 / Email</div>
+        <input type="email" id="email" placeholder="name@example.com" autocomplete="email">
+        <div class="err-msg" id="err-msg">올바른 이메일 주소를 입력해 주세요.</div>
+
+        <button class="btn" id="submit-btn" onclick="subscribe()">구독 신청하기 →</button>
+
+        <p class="note">구독 취소는 언제든지 가능합니다 · Unsubscribe anytime</p>
       </div>
 
-      <div class="lang-label">수신 언어 / Language</div>
-      <div class="lang-toggle">
-        <div class="lang-btn active" id="btn-ko" onclick="setLang('ko')">한국어</div>
-        <div class="lang-btn" id="btn-en" onclick="setLang('en')">English</div>
+      <div id="success-area" style="display:none">
+        <div class="success-box">
+          <div class="success-icon">✅</div>
+          <div class="success-title" id="success-title">구독 신청이 완료되었습니다!</div>
+          <div class="success-desc" id="success-desc">곧 확인 이메일을 보내드립니다.<br>매일 오전 9시(Eastern) 최신 논문 브리핑을 받아보세요.</div>
+        </div>
       </div>
-
-      <div class="field-label">이메일 주소 / Email</div>
-      <div class="field-sub">아래 버튼을 누르면 GitHub 이슈가 열립니다 — 제출만 하면 완료</div>
-      <input type="email" id="email" placeholder="name@example.com" autocomplete="email">
-
-      <button class="btn" onclick="subscribe()">구독 신청하기 →</button>
-
-      <p class="note">구독 취소는 언제든지 가능합니다 · Unsubscribe anytime</p>
     </div>
   </div>
 
@@ -68,15 +84,55 @@
       document.getElementById('btn-ko').className = 'lang-btn' + (l==='ko' ? ' active' : '');
       document.getElementById('btn-en').className = 'lang-btn' + (l==='en' ? ' active' : '');
     }
-    function subscribe() {
-      var email = document.getElementById('email').value.trim();
+    async function subscribe() {
+      var emailEl = document.getElementById('email');
+      var email = emailEl.value.trim();
+      var errEl = document.getElementById('err-msg');
       if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        alert('올바른 이메일 주소를 입력해 주세요.\nPlease enter a valid email address.');
+        emailEl.className = 'error';
+        errEl.style.display = 'block';
+        errEl.textContent = lang === 'en'
+          ? 'Please enter a valid email address.'
+          : '올바른 이메일 주소를 입력해 주세요.';
         return;
       }
-      var title = encodeURIComponent('Subscribe: ' + email + ' [' + lang + ']');
-      var url = 'https://github.com/SHLee-95/politics/issues/new?template=subscribe.yml&title=' + title;
-      window.open(url, '_blank');
+      emailEl.className = '';
+      errEl.style.display = 'none';
+
+      var btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      btn.textContent = lang === 'en' ? 'Submitting...' : '처리 중...';
+
+      try {
+        var res = await fetch('https://formspree.io/f/mjgjowen', {
+          method: 'POST',
+          headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email, language: lang })
+        });
+        if (res.ok) {
+          document.getElementById('form-area').style.display = 'none';
+          var successArea = document.getElementById('success-area');
+          successArea.style.display = 'block';
+          if (lang === 'en') {
+            document.getElementById('success-title').textContent = 'Subscription confirmed!';
+            document.getElementById('success-desc').textContent = 'A confirmation email is on its way.\nYou\'ll receive daily briefings every morning at 9AM Eastern.';
+          }
+        } else {
+          btn.disabled = false;
+          btn.textContent = lang === 'en' ? 'Subscribe →' : '구독 신청하기 →';
+          errEl.style.display = 'block';
+          errEl.textContent = lang === 'en'
+            ? 'Something went wrong. Please try again.'
+            : '오류가 발생했습니다. 다시 시도해 주세요.';
+        }
+      } catch(e) {
+        btn.disabled = false;
+        btn.textContent = lang === 'en' ? 'Subscribe →' : '구독 신청하기 →';
+        errEl.style.display = 'block';
+        errEl.textContent = lang === 'en'
+          ? 'Network error. Please try again.'
+          : '네트워크 오류가 발생했습니다. 다시 시도해 주세요.';
+      }
     }
   </script>
 </body>
