@@ -1,4 +1,4 @@
-# Politics Journal Crawler
+# Political Science Journal Briefing Bot
 
 An automated tool that monitors comparative politics and international relations journals for new publications and delivers bilingual (English/Korean) digests to subscribers.
 
@@ -49,7 +49,7 @@ An automated tool that monitors comparative politics and international relations
 Subscribe to receive journal digests at the GitHub Pages site:
 `https://shlee-95.github.io/politics`
 
-## Author
+## Contributor
 
 Sang Hun Lee — PhD Student, Political Science, University at Buffalo  
 [slee275@buffalo.edu](mailto:slee275@buffalo.edu) | [shlee-95.github.io](https://shlee-95.github.io)
