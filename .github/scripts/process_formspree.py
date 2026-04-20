@@ -100,40 +100,86 @@ def fetch_formspree_submissions():
 
 def send_confirmation(recipient: str, language: str):
     if language == "en":
-        subject = "[Pol-Sci Journal Bot] Subscription confirmed ✅"
+        subject = "[Pol-Sci Journal Bot] Subscription confirmed"
         body_html = f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8"></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f5f9;padding:24px;">
-<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
-<table width="520" style="background:#fff;border-radius:16px;overflow:hidden;">
-  <tr><td style="background:linear-gradient(135deg,#0f172a,#1e3a5f);padding:28px 32px;text-align:center;">
-    <p style="color:#94a3b8;font-size:11px;letter-spacing:2px;text-transform:uppercase;margin:0 0 6px">Pol-Sci Journal Bot</p>
-    <h1 style="color:#f8fafc;font-size:20px;font-weight:700;margin:0">Subscription Confirmed</h1>
+<body style="margin:0;padding:0;background-color:#0f172a;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#0f172a;padding:40px 16px;">
+<tr><td align="center">
+<table width="520" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:16px;overflow:hidden;">
+
+  <!-- Header -->
+  <tr><td style="background-color:#0f172a;padding:32px 40px 24px;text-align:center;">
+    <p style="color:#64748b;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;margin:0 0 10px 0;font-family:Arial,sans-serif;">Pol-Sci Journal Bot</p>
+    <div style="display:inline-block;background-color:#166534;border-radius:50%;width:56px;height:56px;line-height:56px;text-align:center;font-size:28px;margin-bottom:16px;">✓</div>
+    <h1 style="color:#f8fafc;font-size:22px;font-weight:700;margin:0;font-family:Arial,sans-serif;">Subscription Confirmed</h1>
   </td></tr>
-  <tr><td style="padding:28px 32px;color:#334155;font-size:14px;line-height:1.7;">
-    <p>Your subscription has been confirmed!</p>
-    <p style="margin-top:12px;">You'll receive daily briefings of the latest comparative politics and international relations research at <strong>{recipient}</strong> every morning at 9AM Eastern.</p>
-    <p style="margin-top:12px;color:#64748b;font-size:13px;">To unsubscribe, reply to any briefing email.</p>
+
+  <!-- Divider -->
+  <tr><td style="background-color:#1e3a5f;height:4px;font-size:0;line-height:0;">&nbsp;</td></tr>
+
+  <!-- Body -->
+  <tr><td style="padding:32px 40px;background-color:#ffffff;">
+    <p style="color:#0f172a;font-size:15px;font-weight:600;margin:0 0 12px 0;font-family:Arial,sans-serif;">Welcome aboard!</p>
+    <p style="color:#334155;font-size:14px;line-height:1.8;margin:0 0 16px 0;font-family:Arial,sans-serif;">
+      You'll receive daily briefings of the latest <strong style="color:#0f172a;">comparative politics</strong> and <strong style="color:#0f172a;">international relations</strong> research every morning at <strong style="color:#0f172a;">9 AM Eastern</strong>.
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc;border-radius:10px;margin:20px 0;">
+      <tr><td style="padding:16px 20px;">
+        <p style="color:#64748b;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:0 0 4px 0;font-family:Arial,sans-serif;">Delivering to</p>
+        <p style="color:#0f172a;font-size:14px;font-weight:600;margin:0;font-family:Arial,sans-serif;">{recipient}</p>
+      </td></tr>
+    </table>
+    <p style="color:#94a3b8;font-size:12px;margin:0;font-family:Arial,sans-serif;">To unsubscribe, reply to any briefing email.</p>
   </td></tr>
+
+  <!-- Footer -->
+  <tr><td style="background-color:#f1f5f9;padding:16px 40px;text-align:center;">
+    <p style="color:#94a3b8;font-size:11px;margin:0;font-family:Arial,sans-serif;">Pol-Sci Journal Bot · Comparative Politics & IR · Daily at 9AM ET</p>
+  </td></tr>
+
 </table>
 </td></tr></table>
 </body></html>"""
     else:
-        subject = "[Pol-Sci Journal Bot] 구독이 완료되었습니다 ✅"
+        subject = "[Pol-Sci Journal Bot] 구독이 완료되었습니다"
         body_html = f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8"></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f5f9;padding:24px;">
-<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
-<table width="520" style="background:#fff;border-radius:16px;overflow:hidden;">
-  <tr><td style="background:linear-gradient(135deg,#0f172a,#1e3a5f);padding:28px 32px;text-align:center;">
-    <p style="color:#94a3b8;font-size:11px;letter-spacing:2px;text-transform:uppercase;margin:0 0 6px">Pol-Sci Journal Bot</p>
-    <h1 style="color:#f8fafc;font-size:20px;font-weight:700;margin:0">구독 신청 완료</h1>
+<body style="margin:0;padding:0;background-color:#0f172a;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#0f172a;padding:40px 16px;">
+<tr><td align="center">
+<table width="520" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:16px;overflow:hidden;">
+
+  <!-- Header -->
+  <tr><td style="background-color:#0f172a;padding:32px 40px 24px;text-align:center;">
+    <p style="color:#64748b;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;margin:0 0 10px 0;font-family:Arial,sans-serif;">Pol-Sci Journal Bot</p>
+    <div style="display:inline-block;background-color:#166534;border-radius:50%;width:56px;height:56px;line-height:56px;text-align:center;font-size:28px;margin-bottom:16px;">✓</div>
+    <h1 style="color:#f8fafc;font-size:22px;font-weight:700;margin:0;font-family:Arial,sans-serif;">구독 신청 완료</h1>
   </td></tr>
-  <tr><td style="padding:28px 32px;color:#334155;font-size:14px;line-height:1.7;">
-    <p>구독이 완료되었습니다!</p>
-    <p style="margin-top:12px;"><strong>{recipient}</strong> 으로 매일 오전 9시(Eastern) 비교정치학·국제정치학 최신 논문 브리핑을 보내드립니다.</p>
-    <p style="margin-top:12px;color:#64748b;font-size:13px;">구독 취소를 원하시면 브리핑 이메일에 회신해 주세요.</p>
+
+  <!-- Divider -->
+  <tr><td style="background-color:#1e3a5f;height:4px;font-size:0;line-height:0;">&nbsp;</td></tr>
+
+  <!-- Body -->
+  <tr><td style="padding:32px 40px;background-color:#ffffff;">
+    <p style="color:#0f172a;font-size:15px;font-weight:600;margin:0 0 12px 0;font-family:Arial,sans-serif;">구독해 주셔서 감사합니다!</p>
+    <p style="color:#334155;font-size:14px;line-height:1.8;margin:0 0 16px 0;font-family:Arial,sans-serif;">
+      매일 오전 <strong style="color:#0f172a;">9시(Eastern)</strong> <strong style="color:#0f172a;">비교정치학 · 국제정치학</strong> 최신 논문 브리핑을 보내드립니다.
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc;border-radius:10px;margin:20px 0;">
+      <tr><td style="padding:16px 20px;">
+        <p style="color:#64748b;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:0 0 4px 0;font-family:Arial,sans-serif;">수신 이메일</p>
+        <p style="color:#0f172a;font-size:14px;font-weight:600;margin:0;font-family:Arial,sans-serif;">{recipient}</p>
+      </td></tr>
+    </table>
+    <p style="color:#94a3b8;font-size:12px;margin:0;font-family:Arial,sans-serif;">구독 취소를 원하시면 브리핑 이메일에 회신해 주세요.</p>
   </td></tr>
+
+  <!-- Footer -->
+  <tr><td style="background-color:#f1f5f9;padding:16px 40px;text-align:center;">
+    <p style="color:#94a3b8;font-size:11px;margin:0;font-family:Arial,sans-serif;">Pol-Sci Journal Bot · 비교정치학 & 국제정치학 · 매일 오전 9시 ET</p>
+  </td></tr>
+
 </table>
 </td></tr></table>
 </body></html>"""
