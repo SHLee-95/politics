@@ -264,36 +264,40 @@ def generate_summary(papers: list) -> str:
     return response.choices[0].message.content
 
 
-def build_reference_list(papers: list) -> str:
-    lines = []
-    for p in papers:
-        authors_raw = p.get("author", [])
-        if authors_raw:
-            last = authors_raw[0].get("family", "Unknown")
-            initials = "".join(
-                f"{n[:1]}." for n in authors_raw[0].get("given", "").split()
-            )
-            author_str = f"{last}, {initials}"
-            if len(authors_raw) > 1:
-                others = []
-                for a in authors_raw[1:4]:
-                    f_ = a.get("family", "")
-                    g_ = "".join(f"{n[:1]}." for n in a.get("given", "").split())
-                    others.append(f"{f_}, {g_}")
-                author_str += ", " + ", ".join(others)
-                if len(authors_raw) > 4:
-                    author_str += ", et al."
+def format_apsa_citation(item: dict) -> str:
+    authors_raw = item.get("author", [])
+    if authors_raw:
+        names = []
+        for a in authors_raw[:6]:
+            family = (a.get("family") or "").strip()
+            given = (a.get("given") or "").strip()
+            if family and given:
+                names.append(f"{family}, {given}")
+            elif family:
+                names.append(family)
+        if not names:
+            author_text = "Unknown"
+        elif len(names) == 1:
+            author_text = names[0]
+        elif len(names) == 2:
+            author_text = f"{names[0]}, and {names[1]}"
         else:
-            author_str = "Unknown"
+            author_text = ", ".join(names[:-1]) + f", and {names[-1]}"
+        if len(authors_raw) > 6:
+            author_text += ", et al."
+    else:
+        author_text = "Unknown"
 
-        year = format_year(p)
-        title = (p.get("title") or ["No title"])[0]
-        journal = p.get("_journal_name", "")
-        doi = p.get("DOI", "")
-        url = p.get("URL", f"https://doi.org/{doi}")
-        lines.append(f"- {author_str} ({year}). {title}. *{journal}*. {url}")
+    year = format_year(item)
+    title = (item.get("title") or ["No title"])[0].strip()
+    journal = (item.get("_journal_name") or "").strip()
+    doi = item.get("DOI", "")
+    url = item.get("URL", f"https://doi.org/{doi}")
+    return f'{author_text}. {year}. "{title}." *{journal}*. {url}'
 
-    return "\n".join(lines)
+
+def build_reference_list(papers: list) -> str:
+    return "\n".join(f"- {format_apsa_citation(p)}" for p in papers)
 
 
 def save_markdown(papers: list, summary: str) -> Path:
