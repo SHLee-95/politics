@@ -316,36 +316,40 @@ def build_html_email(raw_summary, today_str, language="ko"):
 
     if language == "ko":
         section_configs = [
-            ("IR",      "🌐 국제정치",       "#7B1D1D", "#FEF2F2"),
-            ("CP",      "🗳️ 비교정치",      "#1A3A5C", "#EFF6FF"),
-            ("METHODS", "📐 방법론 & 이론",  "#14532D", "#F0FDF4"),
+            ("IR",      "🌐 국제정치",        "#8B1A1A", "#FFF5F5"),
+            ("CP",      "🗳️ 비교정치",        "#1A3A6B", "#F0F5FF"),
+            ("METHODS", "📐 방법론 & 이론",   "#14532D", "#F0FDF4"),
         ]
-        label_method = "방법론"
-        label_finding = "핵심 발견"
+        label_method      = "방법론"
+        label_finding     = "핵심 발견"
         label_significance = "의의"
-        header_sub = "국제정치 · 비교정치 · 방법론 — 분야별 추천 3편"
+        header_sub        = "국제정치 · 비교정치 · 방법론 — 분야별 추천 3편"
     else:
         section_configs = [
-            ("IR",      "🌐 International Relations", "#7B1D1D", "#FEF2F2"),
-            ("CP",      "🗳️ Comparative Politics",   "#1A3A5C", "#EFF6FF"),
+            ("IR",      "🌐 International Relations", "#8B1A1A", "#FFF5F5"),
+            ("CP",      "🗳️ Comparative Politics",   "#1A3A6B", "#F0F5FF"),
             ("METHODS", "📐 Methods & Theory",        "#14532D", "#F0FDF4"),
         ]
-        label_method = "Method"
-        label_finding = "Finding"
+        label_method       = "Method"
+        label_finding      = "Finding"
         label_significance = "Significance"
-        header_sub = "IR · Comparative Politics · Methods — Top 3 each"
+        header_sub         = "IR · Comparative Politics · Methods — Top 3 each"
 
-    def pill(text, bg, color):
-        return (f'<span style="display:inline-block;background:{bg};color:{color};'
-                f'font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;'
-                f'letter-spacing:.3px;margin-right:4px;">{text}</span>')
+    def pill(text, bg, border):
+        return (f'<span style="display:inline-block;background:{bg};color:#000000;' 
+                f'border:1px solid {border};font-size:10px;font-weight:700;' 
+                f'padding:2px 8px;border-radius:4px;margin-right:4px;letter-spacing:.2px;">' 
+                f'{text}</span>')
 
     def field_row(label, value, accent):
-        return (f'<tr><td style="padding:5px 0 5px 0;vertical-align:top;width:70px;">'
-                f'<span style="font-size:10px;font-weight:700;color:{accent};'
-                f'text-transform:uppercase;letter-spacing:.8px;">{label}</span></td>'
-                f'<td style="padding:5px 0 5px 8px;color:#374151;font-size:13px;line-height:1.65;">'
-                f'{value}</td></tr>')
+        return (
+            f'<tr>' 
+            f'<td style="padding:6px 0 6px 0;vertical-align:top;width:72px;white-space:nowrap;">' 
+            f'<span style="font-size:10px;font-weight:800;color:{accent};' 
+            f'text-transform:uppercase;letter-spacing:1px;">{label}</span></td>' 
+            f'<td style="padding:6px 0 6px 10px;color:#000000;' 
+            f'font-size:13px;line-height:1.7;">{value}</td></tr>'
+        )
 
     sections_html = ""
     for sec_key, sec_title, accent, light_bg in section_configs:
@@ -355,88 +359,104 @@ def build_html_email(raw_summary, today_str, language="ko"):
 
         paper_cards = ""
         for i, p in enumerate(papers):
-            title = p.get('title', 'Untitled')
-            authors = p.get('authors', '')
-            journal = p.get('journal', '')
-            year = p.get('year', '')
-            method = p.get('method', '')
-            finding = p.get('finding', '')
-            significance = p.get('significance', '')
-            url = p.get('url', '#')
+            title      = p.get("title", "Untitled")
+            authors    = p.get("authors", "")
+            journal    = p.get("journal", "")
+            year       = p.get("year", "")
+            method     = p.get("method", "")
+            finding    = p.get("finding", "")
+            significance = p.get("significance", "")
+            url        = p.get("url", "#")
 
-            title_html = (f'<a href="{url}" style="color:#111827;text-decoration:none;'
-                         f'font-size:14.5px;font-weight:700;line-height:1.45;">{title}</a>')
+            title_html = (
+                f'<a href="{url}" style="color:#000000;text-decoration:none;' 
+                f'font-size:14.5px;font-weight:700;line-height:1.45;' 
+                f'border-bottom:1.5px solid {accent};">{title}</a>'
+            )
 
-            meta_pills = pill(journal, light_bg, accent) + pill(year, "#F3F4F6", "#6B7280")
+            meta_row = pill(journal, light_bg, accent)
+            if year:
+                meta_row += pill(year, "#F5F5F5", "#CCCCCC")
             if method:
-                meta_pills += pill(method, "#FFF7ED", "#92400E")
+                meta_row += pill(method, "#FFFBEB", "#D97706")
 
             rows = ""
             if finding:
                 rows += field_row(label_finding, finding, accent)
             if significance:
-                rows += field_row(label_significance, significance, "#6B7280")
+                rows += field_row(label_significance, significance, "#444444")
 
-            sep = '<tr><td colspan="2" style="padding:0;"><div style="height:1px;background:#F3F4F6;margin:6px 0;"></div></td></tr>' if i < len(papers)-1 else ''
+            border_bottom = "border-bottom:1px solid #EBEBEB;" if i < len(papers)-1 else ""
 
             paper_cards += f"""
-            <div style="padding:16px 0 16px;{'border-bottom:1px solid #F3F4F6;' if i < len(papers)-1 else ''}">
-              <div style="margin-bottom:8px;">{title_html}</div>
-              <div style="margin-bottom:10px;font-size:11.5px;color:#6B7280;">{authors}</div>
-              <div style="margin-bottom:10px;">{meta_pills}</div>
+            <div style="padding:18px 0;{border_bottom}">
+              <div style="margin-bottom:7px;">{title_html}</div>
+              <div style="margin-bottom:10px;font-size:11.5px;color:#000000;font-weight:500;">{authors}</div>
+              <div style="margin-bottom:12px;">{meta_row}</div>
               <table cellpadding="0" cellspacing="0" width="100%">{rows}</table>
             </div>"""
 
         sections_html += f"""
-        <div style="margin-bottom:28px;">
-          <div style="display:flex;align-items:center;margin-bottom:14px;padding-bottom:10px;
-               border-bottom:2px solid {accent};">
-            <span style="font-size:16px;font-weight:800;color:{accent};">{sec_title}</span>
-          </div>
-          <div style="background:#FFFFFF;border-radius:10px;padding:0 20px;
-               border:1px solid #E5E7EB;box-shadow:0 1px 4px rgba(0,0,0,.04);">
+        <div style="margin-bottom:32px;">
+          <h2 style="margin:0 0 12px;font-size:15px;font-weight:800;color:#000000;
+               padding:8px 12px;border-left:4px solid {accent};background:{light_bg};">
+            {sec_title}
+          </h2>
+          <div style="background:#FFFFFF;border-radius:6px;padding:0 18px;
+               border:1px solid #DEDEDE;">
             {paper_cards}
           </div>
         </div>"""
 
     return f"""<!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background:#F0EDE8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#F0EDE8;padding:28px 16px;">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background:#EFEFEF;font-family:Georgia,'Times New Roman',serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#EFEFEF;padding:24px 16px;">
 <tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+<table width="620" cellpadding="0" cellspacing="0" style="max-width:620px;width:100%;">
 
-  <!-- HEADER -->
-  <tr><td style="background:#1C2B3A;border-radius:12px 12px 0 0;padding:28px 32px 22px;">
+  <!-- MASTHEAD -->
+  <tr><td style="background:#FFFFFF;border-top:4px solid #000000;
+       border-bottom:1px solid #000000;padding:20px 28px 16px;">
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td>
-          <p style="margin:0 0 4px;color:#94A3B8;font-size:9px;font-weight:700;
-             letter-spacing:3px;text-transform:uppercase;">Pol-Sci Journal Bot</p>
-          <h1 style="margin:0 0 6px;color:#F8FAFC;font-size:20px;font-weight:800;line-height:1.3;">
-            비교정치 · 국제정치 브리핑</h1>
-          <p style="margin:0;color:#64748B;font-size:11px;">{header_sub}</p>
+          <p style="margin:0 0 3px;font-size:9px;font-weight:700;color:#000000;
+             letter-spacing:3px;text-transform:uppercase;font-family:-apple-system,Helvetica,sans-serif;">
+            Pol-Sci Journal Bot
+          </p>
+          <h1 style="margin:0;font-size:24px;font-weight:700;color:#000000;line-height:1.2;
+               font-family:Georgia,serif;">
+            비교정치 · 국제정치 브리핑
+          </h1>
         </td>
-        <td style="text-align:right;vertical-align:top;white-space:nowrap;">
-          <span style="display:inline-block;background:#243447;border:1px solid #334155;
-            color:#94A3B8;font-size:11px;font-weight:600;padding:5px 12px;border-radius:6px;">
+        <td style="text-align:right;vertical-align:bottom;">
+          <p style="margin:0;font-size:11px;color:#000000;font-family:-apple-system,Helvetica,sans-serif;">
             {today_str}
-          </span>
+          </p>
+          <p style="margin:3px 0 0;font-size:10px;color:#444444;font-family:-apple-system,Helvetica,sans-serif;">
+            {header_sub}
+          </p>
         </td>
       </tr>
     </table>
   </td></tr>
 
   <!-- BODY -->
-  <tr><td style="background:#FAFAF8;padding:28px 32px 24px;border-radius:0 0 12px 12px;
-       border:1px solid #E5E7EB;border-top:none;">
+  <tr><td style="background:#F8F8F6;padding:24px 28px 20px;
+       border:1px solid #DEDEDE;border-top:none;">
     {sections_html}
-    <p style="margin:24px 0 0;padding-top:16px;border-top:1px solid #E5E7EB;
-       text-align:center;font-size:10px;color:#9CA3AF;">
+    <p style="margin:20px 0 0;padding-top:14px;border-top:1px solid #CCCCCC;
+       text-align:center;font-size:10px;color:#555555;
+       font-family:-apple-system,Helvetica,sans-serif;">
       Pol-Sci Journal Bot &nbsp;·&nbsp; Groq Llama 3.3 70B &nbsp;·&nbsp; Crossref API
-      &nbsp;·&nbsp; <a href="https://shlee-95.github.io/politics/subscribe.html"
-      style="color:#9CA3AF;">Unsubscribe</a>
+      &nbsp;·&nbsp;
+      <a href="https://shlee-95.github.io/politics/subscribe.html"
+         style="color:#000000;">Unsubscribe</a>
     </p>
   </td></tr>
 
