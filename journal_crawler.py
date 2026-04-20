@@ -557,6 +557,11 @@ def main():
     today_str = datetime.now().strftime("%Y-%m-%d")
     print(f"\n=== Journal Crawler [{today_str}] ===\n")
 
+    report_file = OUTPUT_DIR / f"Report_{today_str}.md"
+    if report_file.exists():
+        print(f"Today's report already sent ({report_file}). Skipping.")
+        return
+
     print("[1] Loading seen DOIs...")
     seen_dois = load_seen_dois()
     print(f"  {len(seen_dois)} DOIs already seen")
