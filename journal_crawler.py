@@ -91,8 +91,15 @@ KEYWORDS = [
 def load_subscribers() -> list:
     if SUBSCRIBERS_FILE.exists():
         with open(SUBSCRIBERS_FILE, "r") as f:
-            return json.load(f)
-    return [RECIPIENT_EMAIL]
+            raw = json.load(f)
+        result = []
+        for item in raw:
+            if isinstance(item, str):
+                result.append({"email": item, "language": "ko"})
+            elif isinstance(item, dict) and item.get("email"):
+                result.append(item)
+        return result
+    return [{"email": RECIPIENT_EMAIL, "language": "ko"}]
 
 
 def load_seen_dois() -> set:
@@ -211,15 +218,53 @@ def build_prompt_paper_list(papers: list) -> str:
     return "\n".join(lines)
 
 
-def generate_summary(papers: list) -> str:
+def generate_summary(papers: list, language: str = "ko") -> str:
     if not papers:
-        return "수집된 논문이 없습니다."
+        return "수집된 논문이 없습니다." if language == "ko" else "No papers collected."
 
     client = Groq(api_key=GROQ_API_KEY)
     paper_text = build_prompt_paper_list(papers)
-    today = datetime.now().strftime("%Y년 %m월 %d일")
 
-    prompt = f"""당신은 비교정치학 및 국제정치학 전문 연구자입니다.
+    if language == "en":
+        today = datetime.now().strftime("%B %d, %Y")
+        prompt = f"""You are an expert researcher in comparative politics and international relations.
+Below are today's ({today}) newly collected academic papers.
+
+{paper_text}
+
+Write a concise English briefing in this exact structure:
+
+## 📊 Today's Collection
+- Brief stats: total papers, number of journals
+
+## 🔍 Thematic Clusters
+Group papers into 2–4 themes (e.g., Democracy & Authoritarianism, Conflict & Security, IPE)
+
+## 💡 Key Trends
+- 3–5 bullet points on notable shared findings or research trends today
+
+## 🌐 Featured — International Relations (TOP 3)
+Pick the 3 most important IR papers (foreign policy, security, war, IO, trade, nuclear):
+For each:
+- Full APSA citation (e.g., Smith, John. 2024. "Title." *Journal* URL)
+- Core argument or finding (2–3 sentences)
+- Why it matters
+
+## 🗳️ Featured — Comparative Politics (TOP 3)
+Pick the 3 most important CP papers (democracy, elections, parties, authoritarianism):
+For each:
+- Full APSA citation
+- Core argument or finding (2–3 sentences)
+- Why it matters
+
+## 🔮 Implications
+2–3 implications for real-world politics or the field.
+
+Keep it concise, evidence-based, and readable.
+"""
+    else:
+        today = datetime.now().strftime("%Y년 %m월 %d일")
+        prompt = f"""당신은 비교정치학 및 국제정치학 전문 연구자입니다.
 아래는 오늘({today}) 수집된 최신 학술 논문 목록입니다.
 
 {paper_text}
@@ -238,14 +283,14 @@ def generate_summary(papers: list) -> str:
 ## 🌐 주목할 논문 — 국제정치 (TOP 3)
 국제관계, 외교, 안보, 전쟁, 국제기구, 무역, 핵 등 국제정치 분야에서 가장 중요한 논문 3편:
 각 논문마다:
-- APSA 스타일 완전 인용 (예: Smith, John, and Jane Doe. 2024. "Title." *Journal Name* 12(3): 45–67.)
+- APSA 스타일 완전 인용 (예: Smith, John. 2024. "Title." *Journal Name* URL)
 - 핵심 주장 또는 발견 (2~3문장)
 - 이 논문이 중요한 이유
 
 ## 🗳️ 주목할 논문 — 비교정치 (TOP 3)
 민주주의, 권위주의, 선거, 정당, 국내 제도, 사회운동 등 비교정치 분야에서 가장 중요한 논문 3편:
 각 논문마다:
-- APSA 스타일 완전 인용 (예: Smith, John, and Jane Doe. 2024. "Title." *Journal Name* 12(3): 45–67.)
+- APSA 스타일 완전 인용 (예: Smith, John. 2024. "Title." *Journal Name* URL)
 - 핵심 주장 또는 발견 (2~3문장)
 - 이 논문이 중요한 이유
 
@@ -391,8 +436,26 @@ def markdown_to_html(text: str) -> str:
     return "\n".join(html_lines)
 
 
-def build_html_email(summary: str, papers: list, today_str: str) -> str:
+def build_html_email(summary: str, papers: list, today_str: str, language: str = "ko") -> str:
     summary_html = markdown_to_html(summary)
+    journal_count = len(set(p.get("_journal_name", "") for p in papers))
+
+    if language == "en":
+        header_label = "Daily Briefing"
+        header_title = "Comparative Politics &amp; IR Briefing"
+        badge_papers = f"{len(papers)} papers"
+        badge_journals = f"{journal_count} journals"
+        section_summary = "AI Summary"
+        section_papers = "Paper List"
+        footer_text = "Pol-Sci Journal Bot &nbsp;·&nbsp; Groq (Llama 3.3 70B) &nbsp;·&nbsp; Crossref API"
+    else:
+        header_label = "Daily Briefing"
+        header_title = "비교정치학 · 국제정치학 논문 브리핑"
+        badge_papers = f"{len(papers)}편"
+        badge_journals = f"{journal_count}개 저널"
+        section_summary = "AI 요약 브리핑"
+        section_papers = "수집 논문 목록"
+        footer_text = "Pol-Sci Journal Bot &nbsp;·&nbsp; Groq (Llama 3.3 70B) &nbsp;·&nbsp; Crossref API"
 
     paper_cards = ""
     for p in papers:
@@ -404,22 +467,19 @@ def build_html_email(summary: str, papers: list, today_str: str) -> str:
         url = p.get("URL", f"https://doi.org/{doi}")
         paper_cards += f"""
         <tr>
-          <td style="padding:14px 0;border-bottom:1px solid #f1f5f9;">
-            <a href="{url}" style="color:#1d4ed8;text-decoration:none;font-size:14px;
-               font-weight:600;line-height:1.6;display:block;margin-bottom:5px;">{title}</a>
-            <div>
-              <span style="color:#64748b;font-size:13px;">{authors} &nbsp;({year})</span>
-            </div>
-            <div style="margin-top:3px;">
-              <span style="display:inline-block;background:#eff6ff;color:#1d4ed8;font-size:11px;
-                font-weight:600;padding:2px 8px;border-radius:4px;">{journal}</span>
-            </div>
+          <td style="padding:14px 0 14px;border-bottom:1px solid #f1f5f9;">
+            <a href="{url}" style="font-size:14px;font-weight:700;color:#0f172a;
+               text-decoration:none;line-height:1.55;display:block;margin-bottom:6px;">{title}</a>
+            <span style="font-size:12px;color:#64748b;">{authors} ({year})</span>
+            &nbsp;
+            <span style="display:inline-block;background:#f0fdf4;color:#15803d;font-size:11px;
+              font-weight:600;padding:1px 7px;border-radius:4px;vertical-align:middle;">{journal}</span>
           </td>
         </tr>"""
 
-    badge_style = (
-        "display:inline-block;background:#dbeafe;color:#1d4ed8;"
-        "font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;margin-right:6px;"
+    badge = (
+        "display:inline-block;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);"
+        "color:#e2e8f0;font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;margin:0 3px;"
     )
 
     return f"""<!DOCTYPE html>
@@ -428,51 +488,49 @@ def build_html_email(summary: str, papers: list, today_str: str) -> str:
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 </head>
-<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 0;">
+<body style="margin:0;padding:0;background:#eef2f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#eef2f7;padding:32px 16px;">
 <tr><td align="center">
-<table width="620" cellpadding="0" cellspacing="0" style="max-width:620px;width:100%;">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
 
   <!-- HEADER -->
-  <tr><td style="background:#0f172a;border-radius:12px 12px 0 0;padding:28px 32px;text-align:center;">
-    <p style="margin:0 0 6px;color:#94a3b8;font-size:11px;letter-spacing:2px;text-transform:uppercase;">
-      Daily Briefing
-    </p>
-    <h1 style="margin:0 0 8px;color:#f8fafc;font-size:20px;font-weight:700;line-height:1.3;">
-      비교정치학 · 국제정치학 논문 브리핑
+  <tr><td style="background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);
+      border-radius:16px 16px 0 0;padding:32px 36px 28px;text-align:center;">
+    <p style="margin:0 0 10px;color:#94a3b8;font-size:10px;font-weight:700;
+       letter-spacing:3px;text-transform:uppercase;">{header_label}</p>
+    <h1 style="margin:0 0 10px;color:#f8fafc;font-size:22px;font-weight:800;line-height:1.3;">
+      {header_title}
     </h1>
-    <p style="margin:0;color:#64748b;font-size:12px;">{today_str}</p>
-    <div style="margin-top:14px;">
-      <span style="{badge_style}">{len(papers)}편 수집</span>
-      <span style="{badge_style}">{len(set(p.get('_journal_name','') for p in papers))}개 저널</span>
+    <p style="margin:0 0 16px;color:#64748b;font-size:12px;">{today_str}</p>
+    <div>
+      <span style="{badge}">{badge_papers}</span>
+      <span style="{badge}">{badge_journals}</span>
     </div>
   </td></tr>
 
-  <!-- SUMMARY -->
-  <tr><td style="background:#ffffff;padding:28px 32px;">
-    <p style="margin:0 0 16px;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;
-       color:#94a3b8;font-weight:600;">AI 요약 브리핑</p>
+  <!-- SUMMARY LABEL -->
+  <tr><td style="background:#f8fafc;padding:20px 36px 0;">
+    <p style="margin:0;font-size:10px;font-weight:700;letter-spacing:2px;
+       text-transform:uppercase;color:#94a3b8;">{section_summary}</p>
+  </td></tr>
+
+  <!-- SUMMARY BODY -->
+  <tr><td style="background:#f8fafc;padding:14px 36px 28px;">
     {summary_html}
   </td></tr>
 
-  <!-- DIVIDER -->
-  <tr><td style="background:#ffffff;padding:0 32px;">
-    <hr style="border:none;border-top:1px solid #e2e8f0;margin:0;">
-  </td></tr>
-
-  <!-- PAPER LIST -->
-  <tr><td style="background:#ffffff;padding:24px 32px 28px;border-radius:0 0 12px 12px;">
-    <p style="margin:0 0 14px;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;
-       color:#94a3b8;font-weight:600;">수집 논문 목록</p>
+  <!-- PAPER LIST SECTION -->
+  <tr><td style="background:#ffffff;border-top:1px solid #e2e8f0;
+      border-radius:0 0 16px 16px;padding:24px 36px 28px;">
+    <p style="margin:0 0 14px;font-size:10px;font-weight:700;letter-spacing:2px;
+       text-transform:uppercase;color:#94a3b8;">{section_papers}</p>
     <table width="100%" cellpadding="0" cellspacing="0">{paper_cards}
     </table>
   </td></tr>
 
   <!-- FOOTER -->
-  <tr><td style="padding:16px 0;text-align:center;">
-    <p style="margin:0;color:#94a3b8;font-size:11px;">
-      Pol-Sci Journal Bot &nbsp;·&nbsp; Powered by Groq (Llama 3.3 70B) &nbsp;·&nbsp; Crossref API
-    </p>
+  <tr><td style="padding:18px 0;text-align:center;">
+    <p style="margin:0;color:#94a3b8;font-size:11px;">{footer_text}</p>
   </td></tr>
 
 </table>
@@ -511,17 +569,28 @@ def main():
         print("  No new papers found. Exiting.")
         return
 
-    print("\n[3] Generating AI summary with Gemini...")
-    summary = generate_summary(papers)
-
-    print("\n[4] Saving markdown report...")
-    save_markdown(papers, summary)
-
-    print("\n[5] Sending email...")
+    print("\n[3] Loading subscribers...")
     subscribers = load_subscribers()
-    html = build_html_email(summary, papers, today_str)
-    subject = f"[정치학 브리핑] {today_str} — {len(papers)}편 수집"
-    send_email(subject, html, subscribers)
+    has_en = any(s.get("language") == "en" for s in subscribers)
+
+    print("\n[4] Generating AI summary...")
+    summary_ko = generate_summary(papers, language="ko")
+    summary_en = generate_summary(papers, language="en") if has_en else None
+
+    print("\n[5] Saving markdown report...")
+    save_markdown(papers, summary_ko)
+
+    print("\n[6] Sending emails...")
+    recipients_ko = [s["email"] for s in subscribers if s.get("language", "ko") != "en"]
+    recipients_en = [s["email"] for s in subscribers if s.get("language") == "en"]
+
+    if recipients_ko:
+        html_ko = build_html_email(summary_ko, papers, today_str, language="ko")
+        send_email(f"[정치학 브리핑] {today_str} — {len(papers)}편 수집", html_ko, recipients_ko)
+
+    if recipients_en and summary_en:
+        html_en = build_html_email(summary_en, papers, today_str, language="en")
+        send_email(f"[Poli-Sci Briefing] {today_str} — {len(papers)} papers", html_en, recipients_en)
 
     print("\n[6] Updating seen DOIs...")
     new_dois = {p.get("DOI", "") for p in papers if p.get("DOI")}

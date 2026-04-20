@@ -1,39 +1,83 @@
 <!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>PoliBot Subscription</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Pol-Sci Journal Bot</title>
   <style>
-    body{font-family:Arial,sans-serif;background:#f8fafc;margin:0;padding:24px;color:#0f172a}
-    .card{max-width:560px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:24px}
-    h1{font-size:22px;margin:0 0 8px}
-    p{line-height:1.55}
-    label{display:block;margin:14px 0 6px;font-weight:600}
-    input{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px}
-    button{margin-top:18px;background:#1d4ed8;color:#fff;border:none;padding:10px 14px;border-radius:8px;font-weight:700;cursor:pointer}
-    .sub{color:#475569;font-size:13px}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f172a;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+    .wrap{max-width:460px;width:100%}
+    .logo{text-align:center;margin-bottom:28px}
+    .logo-badge{display:inline-block;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#94a3b8;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:5px 12px;border-radius:99px}
+    .logo h1{color:#f8fafc;font-size:26px;font-weight:800;margin-top:12px;line-height:1.25}
+    .logo p{color:#64748b;font-size:14px;margin-top:8px;line-height:1.6}
+    .card{background:#fff;border-radius:20px;padding:36px 32px;box-shadow:0 24px 64px rgba(0,0,0,.4)}
+    .lang-label{font-size:12px;font-weight:700;color:#94a3b8;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px}
+    .lang-toggle{display:flex;background:#f1f5f9;border-radius:10px;padding:3px;margin-bottom:24px;gap:3px}
+    .lang-btn{flex:1;text-align:center;padding:9px;border-radius:8px;font-size:13px;font-weight:600;color:#64748b;cursor:pointer;transition:all .15s;user-select:none}
+    .lang-btn.active{background:#fff;color:#0f172a;box-shadow:0 1px 4px rgba(0,0,0,.12)}
+    .field-label{font-size:13px;font-weight:600;color:#334155;margin-bottom:6px}
+    .field-sub{font-size:12px;color:#94a3b8;margin-bottom:8px}
+    input[type=email]{width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:14px;color:#0f172a;outline:none;transition:border .15s}
+    input[type=email]:focus{border-color:#3b82f6}
+    .btn{display:block;width:100%;margin-top:20px;background:#0f172a;color:#fff;border:none;padding:14px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;transition:background .15s}
+    .btn:hover{background:#1e293b}
+    .note{color:#94a3b8;font-size:12px;line-height:1.6;margin-top:16px;text-align:center}
+    .stats{display:flex;gap:10px;margin-bottom:24px}
+    .stat{flex:1;background:#f8fafc;border-radius:10px;padding:12px;text-align:center}
+    .stat-num{font-size:18px;font-weight:800;color:#0f172a}
+    .stat-label{font-size:11px;color:#94a3b8;margin-top:2px}
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>정치학 브리핑 구독 / Subscribe</h1>
-    <p class="sub">이메일만 입력하면 바로 접수됩니다. / Enter only your email to subscribe.</p>
+  <div class="wrap">
+    <div class="logo">
+      <div class="logo-badge">Daily Briefing</div>
+      <h1>Pol-Sci Journal Bot</h1>
+      <p>비교정치학 · 국제정치학 최신 논문을<br>매일 아침 AI 요약으로 받아보세요</p>
+    </div>
 
-    <form action="https://formsubmit.co/poliscibot@gmail.com" method="POST">
-      <input type="hidden" name="_subject" value="PoliBot Subscribe Request" />
-      <input type="hidden" name="_template" value="table" />
-      <input type="hidden" name="_captcha" value="false" />
-      <input type="hidden" name="_next" value="./subscribe_success.html" />
-      <input type="hidden" name="language" value="ko" />
+    <div class="card">
+      <div class="stats">
+        <div class="stat"><div class="stat-num">37</div><div class="stat-label">Journals</div></div>
+        <div class="stat"><div class="stat-num">9AM</div><div class="stat-label">Eastern Daily</div></div>
+        <div class="stat"><div class="stat-num">AI</div><div class="stat-label">Groq Powered</div></div>
+      </div>
 
-      <label for="email">이메일 / Email</label>
-      <input id="email" name="email" type="email" required placeholder="name@example.com" />
+      <div class="lang-label">수신 언어 / Language</div>
+      <div class="lang-toggle">
+        <div class="lang-btn active" id="btn-ko" onclick="setLang('ko')">한국어</div>
+        <div class="lang-btn" id="btn-en" onclick="setLang('en')">English</div>
+      </div>
 
-      <button type="submit">구독 신청 / Submit</button>
-    </form>
+      <div class="field-label">이메일 주소 / Email</div>
+      <div class="field-sub">아래 버튼을 누르면 GitHub 이슈가 열립니다 — 제출만 하면 완료</div>
+      <input type="email" id="email" placeholder="name@example.com" autocomplete="email">
 
-    <p class="sub" style="margin-top:14px;">제출된 요청은 자동으로 구독 리스트에 반영됩니다. / Submitted requests are automatically added to the subscriber list.</p>
+      <button class="btn" onclick="subscribe()">구독 신청하기 →</button>
+
+      <p class="note">구독 취소는 언제든지 가능합니다 · Unsubscribe anytime</p>
+    </div>
   </div>
+
+  <script>
+    var lang = 'ko';
+    function setLang(l) {
+      lang = l;
+      document.getElementById('btn-ko').className = 'lang-btn' + (l==='ko' ? ' active' : '');
+      document.getElementById('btn-en').className = 'lang-btn' + (l==='en' ? ' active' : '');
+    }
+    function subscribe() {
+      var email = document.getElementById('email').value.trim();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        alert('올바른 이메일 주소를 입력해 주세요.\nPlease enter a valid email address.');
+        return;
+      }
+      var title = encodeURIComponent('Subscribe: ' + email + ' [' + lang + ']');
+      var url = 'https://github.com/SHLee-95/politics/issues/new?template=subscribe.yml&title=' + title;
+      window.open(url, '_blank');
+    }
+  </script>
 </body>
 </html>

@@ -11,64 +11,103 @@ GMAIL_USER = "poliscibot@gmail.com"
 GMAIL_PASSWORD = os.environ.get("GMAIL_PASSWORD", "")
 
 issue_title = os.environ.get("ISSUE_TITLE", "")
-issue_body = os.environ.get("ISSUE_BODY", "")
+issue_body  = os.environ.get("ISSUE_BODY", "")
 
-# 제목에서 먼저 이메일 추출, 없으면 본문에서
-email_match = re.search(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", issue_title) or \
-              re.search(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", issue_body)
+# 이메일 추출 (제목 우선, 없으면 본문)
+email_match = (
+    re.search(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", issue_title) or
+    re.search(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", issue_body)
+)
 if not email_match:
-    print("No email found in issue body.")
+    print("No email found.")
     with open(os.environ.get("GITHUB_OUTPUT", "/dev/null"), "a") as f:
         f.write("email=unknown\n")
-    exit(0)
+    raise SystemExit(0)
 
-email = email_match.group(0).strip()
-print(f"Found email: {email}")
+email = email_match.group(0).strip().lower()
+
+# 언어 추출 — 제목의 [en] 또는 [ko] 태그
+lang_match = re.search(r"\[(en|ko)\]", issue_title, re.IGNORECASE)
+language = lang_match.group(1).lower() if lang_match else "ko"
+print(f"Email: {email} | Language: {language}")
 
 # subscribers.json 업데이트
 if SUBSCRIBERS_FILE.exists():
     with open(SUBSCRIBERS_FILE, "r") as f:
-        subscribers = json.load(f)
+        raw = json.load(f)
+    # 기존 문자열 포맷 → 딕셔너리 포맷으로 정규화
+    subscribers = []
+    for item in raw:
+        if isinstance(item, str):
+            subscribers.append({"email": item, "language": "ko"})
+        elif isinstance(item, dict) and item.get("email"):
+            subscribers.append(item)
 else:
     subscribers = []
 
-if email not in subscribers:
-    subscribers.append(email)
-    with open(SUBSCRIBERS_FILE, "w") as f:
-        json.dump(subscribers, f, indent=2)
-    print(f"Added {email} to subscribers.")
+existing_emails = [s["email"] for s in subscribers]
+if email not in existing_emails:
+    subscribers.append({"email": email, "language": language})
+    print(f"Added: {email}")
 else:
-    print(f"{email} already subscribed.")
+    for s in subscribers:
+        if s["email"] == email:
+            s["language"] = language
+    print(f"Updated language for existing subscriber: {email}")
+
+with open(SUBSCRIBERS_FILE, "w") as f:
+    json.dump(subscribers, f, indent=2)
 
 # GitHub Actions output
 with open(os.environ.get("GITHUB_OUTPUT", "/dev/null"), "a") as f:
     f.write(f"email={email}\n")
 
-# 확인 이메일 발송
-html = f"""<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"></head>
-<body style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;">
-  <div style="background:#1a237e;color:white;padding:20px;border-radius:8px 8px 0 0;text-align:center;">
-    <h1 style="margin:0;font-size:20px;">🌏 구독 신청 완료</h1>
-  </div>
-  <div style="background:white;padding:20px;border:1px solid #ddd;border-radius:0 0 8px 8px;">
-    <p>안녕하세요!</p>
-    <p><strong>비교정치학·국제정치학 논문 브리핑</strong> 구독이 완료되었습니다.</p>
-    <p>매일 새벽 2시(Eastern)에 최신 논문 요약을 <strong>{email}</strong> 으로 보내드릴게요.</p>
-    <hr>
-    <p style="color:#666;font-size:12px;">구독 취소를 원하시면 GitHub 이슈에 <code>unsubscribe</code>라고 남겨주세요.</p>
-  </div>
-</body>
-</html>"""
+# 확인 이메일
+if language == "en":
+    subject = "[Pol-Sci Journal Bot] Subscription confirmed ✅"
+    body_html = f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f5f9;padding:24px;">
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+<table width="520" style="background:#fff;border-radius:16px;overflow:hidden;">
+  <tr><td style="background:#0f172a;padding:28px 32px;text-align:center;">
+    <p style="color:#94a3b8;font-size:11px;letter-spacing:2px;text-transform:uppercase;margin:0 0 6px">Pol-Sci Journal Bot</p>
+    <h1 style="color:#f8fafc;font-size:20px;font-weight:700;margin:0">Subscription Confirmed</h1>
+  </td></tr>
+  <tr><td style="padding:28px 32px;color:#334155;font-size:14px;line-height:1.7;">
+    <p>Your subscription has been confirmed!</p>
+    <p style="margin-top:12px;">You'll receive daily briefings of the latest comparative politics and international relations research at <strong>{email}</strong> every morning at 9AM Eastern.</p>
+    <p style="margin-top:12px;color:#64748b;font-size:13px;">To unsubscribe, reply to any briefing email or leave a comment on the GitHub issue.</p>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>"""
+else:
+    subject = "[Pol-Sci Journal Bot] 구독이 완료되었습니다 ✅"
+    body_html = f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f5f9;padding:24px;">
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+<table width="520" style="background:#fff;border-radius:16px;overflow:hidden;">
+  <tr><td style="background:#0f172a;padding:28px 32px;text-align:center;">
+    <p style="color:#94a3b8;font-size:11px;letter-spacing:2px;text-transform:uppercase;margin:0 0 6px">Pol-Sci Journal Bot</p>
+    <h1 style="color:#f8fafc;font-size:20px;font-weight:700;margin:0">구독 신청 완료</h1>
+  </td></tr>
+  <tr><td style="padding:28px 32px;color:#334155;font-size:14px;line-height:1.7;">
+    <p>구독이 완료되었습니다!</p>
+    <p style="margin-top:12px;"><strong>{email}</strong> 으로 매일 오전 9시(Eastern) 비교정치학·국제정치학 최신 논문 브리핑을 보내드립니다.</p>
+    <p style="margin-top:12px;color:#64748b;font-size:13px;">구독 취소를 원하시면 GitHub 이슈에 댓글을 남겨주세요.</p>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>"""
 
 try:
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = "[polibot] 구독이 완료되었습니다 ✅"
+    msg["Subject"] = subject
     msg["From"] = f"Pol-Sci Journal Bot <{GMAIL_USER}>"
     msg["To"] = email
-    msg.attach(MIMEText(html, "html", "utf-8"))
-
+    msg.attach(MIMEText(body_html, "html", "utf-8"))
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
         server.login(GMAIL_USER, GMAIL_PASSWORD)
         server.sendmail(GMAIL_USER, email, msg.as_string())
