@@ -1,15 +1,15 @@
 import os
 import json
+import imaplib
+import email
 import smtplib
-import requests
+import re
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 
 SUBSCRIBERS_FILE = Path("subscribers.json")
 SEEN_IDS_FILE = Path("seen_formspree_ids.json")
-FORM_ID = "mjgjowen"
-FORMSPREE_API_KEY = os.environ.get("FORMSPREE_API_KEY", "")
 GMAIL_USER = "poliscibot@gmail.com"
 GMAIL_PASSWORD = os.environ.get("GMAIL_PASSWORD", "")
 
@@ -40,16 +40,65 @@ def save_seen_ids(ids: set):
         json.dump(list(ids), f)
 
 
-def fetch_submissions():
-    headers = {"Authorization": f"Bearer {FORMSPREE_API_KEY}"}
-    url = f"https://api.formspree.io/api/0/forms/{FORM_ID}/submissions"
-    resp = requests.get(url, headers=headers, timeout=15)
-    resp.raise_for_status()
-    data = resp.json()
-    return data.get("submissions", [])
+def get_email_body(msg):
+    body = ""
+    if msg.is_multipart():
+        for part in msg.walk():
+            if part.get_content_type() == "text/plain":
+                body = part.get_payload(decode=True).decode("utf-8", errors="ignore")
+                break
+        if not body:
+            for part in msg.walk():
+                if part.get_content_type() == "text/html":
+                    body = part.get_payload(decode=True).decode("utf-8", errors="ignore")
+                    break
+    else:
+        body = msg.get_payload(decode=True).decode("utf-8", errors="ignore")
+    return body
 
 
-def send_confirmation(email: str, language: str):
+def fetch_formspree_submissions():
+    mail = imaplib.IMAP4_SSL("imap.gmail.com")
+    mail.login(GMAIL_USER, GMAIL_PASSWORD)
+    mail.select("inbox")
+
+    _, message_ids = mail.search(None, '(FROM "formspree.io" UNSEEN)')
+    ids = message_ids[0].split()
+    print(f"Found {len(ids)} unread Formspree notification(s)")
+
+    submissions = []
+    for msg_id in ids:
+        _, msg_data = mail.fetch(msg_id, "(RFC822)")
+        msg = email.message_from_bytes(msg_data[0][1])
+        body = get_email_body(msg)
+
+        # strip HTML tags if body is HTML
+        body_clean = re.sub(r"<[^>]+>", " ", body)
+
+        email_match = re.search(
+            r"email[\s:]+([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})",
+            body_clean, re.IGNORECASE
+        )
+        lang_match = re.search(
+            r"language[\s:]+(ko|en)", body_clean, re.IGNORECASE
+        )
+
+        if email_match:
+            submissions.append({
+                "id": msg_id.decode(),
+                "email": email_match.group(1).strip().lower(),
+                "language": lang_match.group(1).lower() if lang_match else "ko",
+            })
+            mail.store(msg_id, "+FLAGS", "\\Seen")
+        else:
+            print(f"Could not parse email from Formspree notification (msg {msg_id})")
+
+    mail.close()
+    mail.logout()
+    return submissions
+
+
+def send_confirmation(recipient: str, language: str):
     if language == "en":
         subject = "[Pol-Sci Journal Bot] Subscription confirmed ✅"
         body_html = f"""<!DOCTYPE html>
@@ -63,7 +112,7 @@ def send_confirmation(email: str, language: str):
   </td></tr>
   <tr><td style="padding:28px 32px;color:#334155;font-size:14px;line-height:1.7;">
     <p>Your subscription has been confirmed!</p>
-    <p style="margin-top:12px;">You'll receive daily briefings of the latest comparative politics and international relations research at <strong>{email}</strong> every morning at 9AM Eastern.</p>
+    <p style="margin-top:12px;">You'll receive daily briefings of the latest comparative politics and international relations research at <strong>{recipient}</strong> every morning at 9AM Eastern.</p>
     <p style="margin-top:12px;color:#64748b;font-size:13px;">To unsubscribe, reply to any briefing email.</p>
   </td></tr>
 </table>
@@ -82,7 +131,7 @@ def send_confirmation(email: str, language: str):
   </td></tr>
   <tr><td style="padding:28px 32px;color:#334155;font-size:14px;line-height:1.7;">
     <p>구독이 완료되었습니다!</p>
-    <p style="margin-top:12px;"><strong>{email}</strong> 으로 매일 오전 9시(Eastern) 비교정치학·국제정치학 최신 논문 브리핑을 보내드립니다.</p>
+    <p style="margin-top:12px;"><strong>{recipient}</strong> 으로 매일 오전 9시(Eastern) 비교정치학·국제정치학 최신 논문 브리핑을 보내드립니다.</p>
     <p style="margin-top:12px;color:#64748b;font-size:13px;">구독 취소를 원하시면 브리핑 이메일에 회신해 주세요.</p>
   </td></tr>
 </table>
@@ -93,51 +142,39 @@ def send_confirmation(email: str, language: str):
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
         msg["From"] = f"Pol-Sci Journal Bot <{GMAIL_USER}>"
-        msg["To"] = email
+        msg["To"] = recipient
         msg.attach(MIMEText(body_html, "html", "utf-8"))
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(GMAIL_USER, GMAIL_PASSWORD)
-            server.sendmail(GMAIL_USER, email, msg.as_string())
-        print(f"Confirmation sent to {email}")
+            server.sendmail(GMAIL_USER, recipient, msg.as_string())
+        print(f"Confirmation sent to {recipient}")
     except Exception as e:
-        print(f"Failed to send confirmation to {email}: {e}")
+        print(f"Failed to send confirmation to {recipient}: {e}")
 
 
 def main():
-    if not FORMSPREE_API_KEY:
-        print("FORMSPREE_API_KEY not set, skipping.")
-        return
-
-    submissions = fetch_submissions()
-    print(f"Fetched {len(submissions)} total submissions")
-
+    submissions = fetch_formspree_submissions()
     seen_ids = load_seen_ids()
     subscribers = load_subscribers()
     existing_emails = {s["email"] for s in subscribers}
     new_count = 0
 
     for sub in submissions:
-        sid = sub.get("id") or sub.get("_id", "")
+        sid = sub["id"]
         if sid in seen_ids:
             continue
 
-        email = (sub.get("email") or sub.get("_replyto") or "").strip().lower()
-        language = (sub.get("language") or "ko").strip().lower()
-        if language not in ("ko", "en"):
-            language = "ko"
+        subscriber_email = sub["email"]
+        language = sub["language"]
 
-        if not email:
-            seen_ids.add(sid)
-            continue
-
-        if email not in existing_emails:
-            subscribers.append({"email": email, "language": language})
-            existing_emails.add(email)
-            print(f"Added: {email} [{language}]")
-            send_confirmation(email, language)
+        if subscriber_email not in existing_emails:
+            subscribers.append({"email": subscriber_email, "language": language})
+            existing_emails.add(subscriber_email)
+            print(f"Added: {subscriber_email} [{language}]")
+            send_confirmation(subscriber_email, language)
             new_count += 1
         else:
-            print(f"Already exists: {email}")
+            print(f"Already exists: {subscriber_email}")
 
         seen_ids.add(sid)
 

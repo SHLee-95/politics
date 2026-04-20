@@ -20,12 +20,8 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
-        run: pip install requests
-
       - name: Process new subscriptions
         env:
-          FORMSPREE_API_KEY: ${{ secrets.FORMSPREE_API_KEY }}
           GMAIL_PASSWORD: ${{ secrets.GMAIL_PASSWORD }}
         run: python .github/scripts/process_formspree.py
 
