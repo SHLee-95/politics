@@ -62,9 +62,9 @@ def fetch_formspree_submissions():
     mail.login(GMAIL_USER, GMAIL_PASSWORD)
     mail.select("inbox")
 
-    _, message_ids = mail.search(None, '(FROM "formspree.io" UNSEEN)')
+    _, message_ids = mail.search(None, '(FROM "formspree.io")')
     ids = message_ids[0].split()
-    print(f"Found {len(ids)} unread Formspree notification(s)")
+    print(f"Found {len(ids)} Formspree notification(s) total")
 
     submissions = []
     for msg_id in ids:
