@@ -352,8 +352,8 @@ def build_html_email(raw_summary, today_str, language="ko"):
             ("CP",      "비교정치",        "#065F46", "#F0FBF7"),
             ("METHODS", "방법론 및 이론", "#4C1D95", "#F5F0FD"),
         ]
-        font_stack = '-apple-system, BlinkMacSystemFont, \"Noto Sans KR\", \"Malgun Gothic\", sans-serif'
-        title_stack = '-apple-system, BlinkMacSystemFont, \"Noto Sans KR\", \"Malgun Gothic\", sans-serif'
+        font_stack = '\"Pretendard\", -apple-system, BlinkMacSystemFont, \"Apple SD Gothic Neo\", \"Malgun Gothic\", sans-serif'
+        title_stack = '\"Pretendard\", -apple-system, BlinkMacSystemFont, \"Apple SD Gothic Neo\", \"Malgun Gothic\", sans-serif'
         label_arg  = "핵심 주장"
         label_sig  = "의의"
         overview_summary_label = "분야 동향"
@@ -379,8 +379,8 @@ def build_html_email(raw_summary, today_str, language="ko"):
             ("CP",      "Comparative Politics",    "#065F46", "#F0FBF7"),
             ("METHODS", "Methods & Theory",        "#4C1D95", "#F5F0FD"),
         ]
-        font_stack = '-apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Helvetica Neue\", Arial, sans-serif'
-        title_stack = '-apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Helvetica Neue\", Arial, sans-serif'
+        font_stack = '\"Pretendard\", -apple-system, BlinkMacSystemFont, \"Helvetica Neue\", Arial, sans-serif'
+        title_stack = '\"Pretendard\", -apple-system, BlinkMacSystemFont, \"Helvetica Neue\", Arial, sans-serif'
         label_arg  = "Argument"
         label_sig  = "Significance"
         overview_summary_label = "Overview"
