@@ -3,10 +3,12 @@ import random
 import smtplib
 import json
 import re
+import time
 from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from habanero import Crossref
 from groq import Groq
@@ -22,8 +24,11 @@ RECIPIENT_EMAIL = "slee275@buffalo.edu"
 OUTPUT_DIR = Path("output md files")
 SEEN_DOIS_FILE = Path("seen_dois.json")
 SUBSCRIBERS_FILE = Path("subscribers.json")
+LAST_SENT_FILE = Path("last_sent_et_date.txt")
 FETCH_PER_JOURNAL = 10
 SAMPLE_PER_JOURNAL = 2
+EASTERN_TZ = ZoneInfo("America/New_York")
+SEND_HOUR_ET = 9
 
 JOURNALS = [
     {"name": "International Organization",                  "issn": "0020-8183",  "field": "ir"},
@@ -119,6 +124,42 @@ def load_seen_dois():
 def save_seen_dois(seen):
     with open(SEEN_DOIS_FILE, "w") as f:
         json.dump(list(seen), f, indent=2)
+
+
+def get_eastern_now() -> datetime:
+    return datetime.now(EASTERN_TZ)
+
+
+def load_last_sent_date() -> str:
+    if LAST_SENT_FILE.exists():
+        return LAST_SENT_FILE.read_text(encoding="utf-8").strip()
+    return ""
+
+
+def save_last_sent_date(sent_date: str):
+    LAST_SENT_FILE.write_text(sent_date, encoding="utf-8")
+
+
+def wait_until_eastern_send_time():
+    while True:
+        now_et = get_eastern_now()
+        today_et = now_et.date().isoformat()
+        target_et = now_et.replace(hour=SEND_HOUR_ET, minute=0, second=0, microsecond=0)
+        last_sent_date = load_last_sent_date()
+
+        if last_sent_date == today_et:
+            print(f"  Already sent for {today_et} ET. Exiting.")
+            raise SystemExit(0)
+
+        if now_et >= target_et:
+            return
+
+        wait_seconds = (target_et - now_et).total_seconds()
+        print(
+            f"  Waiting until {target_et.strftime('%Y-%m-%d %H:%M %Z')} "
+            f"({int(wait_seconds)} seconds remaining)..."
+        )
+        time.sleep(wait_seconds)
 
 
 def clean_abstract(text):
@@ -506,10 +547,11 @@ def build_html_email(raw_summary, today_str, language="ko"):
   {blocks}
 </div>{sep}"""
 
+        heading_size = "22px" if sec_key in ("IR", "CP") else "20px"
         sections_html += f"""<div style="margin-bottom:32px;background:#FFFFFF;
   border:1px solid #E5E7EB;border-radius:8px;overflow:hidden;">
   <div style="padding:16px 24px 14px;background:{accent};">
-    <span class="section-heading" style="font-size:20px;font-weight:800;color:#FFFFFF;
+    <span class="section-heading" style="font-size:{heading_size};font-weight:800;color:#FFFFFF;
       letter-spacing:{ls};font-family:{font_stack};">{sec_title}</span>
   </div>
   <div style="padding:24px 24px 20px;">
@@ -538,7 +580,7 @@ def build_html_email(raw_summary, today_str, language="ko"):
       .email-body  {{ padding: 16px 12px !important; }}
       .briefing-title  {{ font-size: 24px !important; line-height: 1.2 !important; }}
       .paper-title     {{ font-size: 17px !important; line-height: 1.4 !important; }}
-      .section-heading {{ font-size: 10px !important; }}
+      .section-heading {{ font-size: 18px !important; }}
       .body-text   {{ font-size: 14px !important; line-height: 1.85 !important; }}
       .citation-text {{ font-size: 12px !important; }}
       .footer-text, .disclaimer-text {{ font-size: 11px !important; line-height: 1.65 !important; }}
@@ -617,7 +659,10 @@ def send_email(subject, html_body, recipients):
 
 
 def main():
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    print("\n[0] Waiting for 9:00 AM Eastern Time...")
+    wait_until_eastern_send_time()
+
+    today_str = get_eastern_now().strftime("%Y-%m-%d")
     print(f"\n=== Journal Crawler [{today_str}] ===\n")
 
     print("[1] Loading seen DOIs...")
@@ -649,6 +694,8 @@ def main():
     if recipients_en and summary_en:
         html_en = build_html_email(summary_en, today_str, language="en")
         send_email(f"[Poli-Sci Briefing] {today_str}", html_en, recipients_en)
+
+    save_last_sent_date(today_str)
 
     print("\n[6] Updating seen DOIs...")
     seen_dois.update(p.get("DOI","") for p in papers if p.get("DOI"))

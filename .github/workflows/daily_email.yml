@@ -2,13 +2,17 @@ name: Daily Political Science Journal Crawler
 
 on:
   schedule:
-    # 매일 오전 9시 Eastern (EDT: UTC-4 → UTC 13:00, EST: UTC-5 → UTC 14:00)
-    - cron: '0 13 * * *'   # EDT (여름, 3월~11월)
-    # - cron: '0 14 * * *' # EST (겨울, 11월~3월) — 시즌별 주석 전환
+    # GitHub cron uses UTC. The script gates delivery to 9:00 AM America/New_York.
+    - cron: '0 13 * * *'
+    - cron: '0 14 * * *'
   workflow_dispatch:       # 수동 실행 버튼
 
 permissions:
   contents: write
+
+concurrency:
+  group: daily-email
+  cancel-in-progress: false
 
 jobs:
   crawl-and-email:
@@ -36,6 +40,6 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add "output md files/" seen_dois.json || true
+          git add "output md files/" seen_dois.json last_sent_et_date.txt || true
           git diff --cached --quiet || git commit -m "chore: add report $(date +'%Y-%m-%d')"
           git push
