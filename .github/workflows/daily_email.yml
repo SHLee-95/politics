@@ -2,9 +2,8 @@ name: Daily Political Science Journal Crawler
 
 on:
   schedule:
-    # GitHub cron uses UTC. The script gates delivery to 9:00 AM America/New_York.
+    # GitHub cron uses UTC. 9:00 AM America/New_York = 13:00 UTC (EDT)
     - cron: '0 13 * * *'
-    - cron: '0 14 * * *'
   workflow_dispatch:       # 수동 실행 버튼
 
 permissions:
