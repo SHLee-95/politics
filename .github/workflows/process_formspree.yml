@@ -2,11 +2,15 @@ name: Process Formspree Subscriptions
 
 on:
   schedule:
-    - cron: '0 * * * *'   # 매시간 실행
+    - cron: '0 * * * *' # 매시간 실행
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: process-formspree
+  cancel-in-progress: true
 
 jobs:
   process:
@@ -20,6 +24,9 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
       - name: Process new subscriptions
         env:
           GMAIL_PASSWORD: ${{ secrets.GMAIL_PASSWORD }}
@@ -27,7 +34,7 @@ jobs:
 
       - name: Commit and push changes
         run: |
-          git config user.name  "github-actions[bot]"
+          git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add subscribers.json seen_formspree_ids.json || true
           git diff --cached --quiet || git commit -m "chore: update subscribers from Formspree"
