@@ -22,8 +22,8 @@ RECIPIENT_EMAIL = "slee275@buffalo.edu"
 OUTPUT_DIR = Path("output md files")
 SEEN_DOIS_FILE = Path("seen_dois.json")
 SUBSCRIBERS_FILE = Path("subscribers.json")
-FETCH_PER_JOURNAL = 10
-SAMPLE_PER_JOURNAL = 2
+FETCH_PER_JOURNAL = 20   # increased for better coverage
+MIN_PER_SECTION = 3      # minimum papers per section sent to AI (AI picks 3 from these)
 
 JOURNALS = [
     {"name": "International Organization",                  "issn": "0020-8183",  "field": "ir"},
@@ -64,6 +64,7 @@ JOURNALS = [
     {"name": "Journal of European Public Policy",           "issn": "1350-1763",  "field": "cp"},
     {"name": "Acta Politica",                               "issn": "0001-6810",  "field": "cp"},
 
+    # general flagship journals → METHODS section
     {"name": "American Political Science Review",           "issn": "0003-0554",  "field": "general"},
     {"name": "American Journal of Political Science",       "issn": "0092-5853",  "field": "general"},
     {"name": "Journal of Politics",                         "issn": "0022-3816",  "field": "general"},
@@ -78,6 +79,39 @@ JOURNALS = [
     {"name": "Sociological Methods & Research",             "issn": "0049-1241",  "field": "methods"},
     {"name": "Journal of Information Technology & Politics","issn": "1933-1681",  "field": "methods"},
 ]
+
+# Map journal field → email section
+FIELD_TO_SECTION = {
+    "ir":      "IR",
+    "cp":      "CP",
+    "methods": "METHODS",
+    # "general" is content-classified — see classify_general_paper()
+}
+
+IR_KEYWORDS = [
+    "international", "foreign policy", "alliance", "war", "conflict", "deterrence",
+    "nuclear", "sanction", "diplomacy", "hegemony", "power transition", "security",
+    "geopolitics", "trade", "multilateral", "treaty", "refugee", "migration",
+    "civil-military", "military", "armed", "peace",
+]
+CP_KEYWORDS = [
+    "democracy", "democratization", "autocracy", "authoritarianism", "election",
+    "voting", "electoral", "party", "legislature", "populism", "polarization",
+    "nationalism", "ethnic", "identity", "protest", "revolution", "social movement",
+    "comparative", "regime", "governance", "state capacity", "inequality",
+    "human rights", "civil society",
+]
+
+def classify_general_paper(paper):
+    """Classify a general-journal paper into IR, CP, or METHODS by content."""
+    title = (paper.get("title") or [""])[0].lower()
+    abstract = paper.get("abstract", "").lower()
+    text = title + " " + abstract
+    ir_score = sum(1 for kw in IR_KEYWORDS if kw in text)
+    cp_score = sum(1 for kw in CP_KEYWORDS if kw in text)
+    if ir_score == 0 and cp_score == 0:
+        return "METHODS"
+    return "IR" if ir_score >= cp_score else "CP"
 
 KEYWORDS = [
     "democracy", "democratization", "autocracy", "authoritarianism",
@@ -133,27 +167,53 @@ def keyword_match(paper):
 
 
 def fetch_papers(seen_dois):
+    """Fetch papers guaranteeing MIN_PER_SECTION candidates per section."""
     cr = Crossref()
-    collected = []
+    by_section = {"IR": [], "CP": [], "METHODS": []}
+
     for journal in JOURNALS:
+        field = journal.get("field", "general")
+
         try:
             result = cr.works(
                 filter={"issn": journal["issn"]},
                 sort="published", order="desc",
                 limit=FETCH_PER_JOURNAL,
-                select=["DOI","title","author","published","abstract","URL","container-title"],
+                select=["DOI", "title", "author", "published", "abstract", "URL", "container-title"],
             )
             items = result.get("message", {}).get("items", [])
         except Exception as e:
             print(f"  [SKIP] {journal['name']}: {e}")
             continue
-        candidates = [i for i in items if i.get("DOI","") not in seen_dois and keyword_match(i)]
-        sample = random.sample(candidates, min(SAMPLE_PER_JOURNAL, len(candidates)))
-        for p in sample:
+
+        # methods and general bypass keyword filter
+        skip_keyword = field in ("methods", "general")
+        candidates = [
+            i for i in items
+            if i.get("DOI", "") not in seen_dois and (skip_keyword or keyword_match(i))
+        ]
+        for p in candidates:
             p["_journal_name"] = journal["name"]
-            p["_field"] = journal.get("field", "general")
+            p["_field"] = field
+            if field == "general":
+                section = classify_general_paper(p)
+            else:
+                section = FIELD_TO_SECTION.get(field, "IR")
+            p["_section"] = section
+            by_section[section].append(p)
+        print(f"  {journal['name']}: {len(candidates)} candidates distributed")
+
+    # Sample MIN_PER_SECTION from each section
+    collected = []
+    for section, papers in by_section.items():
+        if not papers:
+            print(f"  [WARNING] {section}: 0 papers — section will be missing from email")
+            continue
+        random.shuffle(papers)
+        sample = papers[:MIN_PER_SECTION]
         collected.extend(sample)
-        print(f"  {journal['name']}: {len(sample)} papers")
+        print(f"  → {section}: {len(sample)} papers sent to AI")
+
     return collected
 
 
@@ -183,11 +243,11 @@ def build_prompt_paper_list(papers):
         authors = format_authors(p)
         year = format_year(p)
         journal = p.get("_journal_name", "")
-        field = p.get("_field", "general")
+        section = p.get("_section", "IR")
         abstract = clean_abstract(p.get("abstract", ""))[:300]
         url = p.get("URL", f"https://doi.org/{p.get('DOI','')}")
         lines.append(
-            f"{i}. [{field.upper()}] {title}\n"
+            f"{i}. [SECTION:{section}] {title}\n"
             f"   Authors: {authors} ({year}) | Journal: {journal} | URL: {url}\n"
             f"   Abstract: {abstract}"
         )
@@ -203,8 +263,8 @@ def generate_summary(papers, language="ko"):
 
     if language == "ko":
         prompt = f"""당신은 비교정치학·국제정치학 전문 연구자입니다.
-아래 논문 목록에서 분야별로 가장 중요한 논문 3편씩 선정해 브리핑하세요.
-각 섹션에는 먼저 분야 전체를 묶는 짧은 요약 블록을 넣고, 그 뒤에 논문 3편을 출력하세요.
+아래 논문 목록은 이미 섹션([SECTION:IR], [SECTION:CP], [SECTION:METHODS])으로 분류되어 있습니다.
+각 섹션에서 반드시 정확히 3편을 선정해 브리핑하세요. IR 3편, CP 3편, METHODS 3편 — 총 9편을 반드시 출력해야 합니다.
 반드시 아래 블록 형식만 사용하세요. 다른 텍스트는 절대 추가하지 마세요.
 
 논문 목록:
@@ -254,7 +314,8 @@ implication: 연구 시사점 요약
 """
     else:
         prompt = f"""You are an expert in comparative politics and international relations.
-Select the 3 most important papers per section. For each section, first provide a short section-level overview block, then output the 3 paper blocks.
+The papers below are already tagged by section ([SECTION:IR], [SECTION:CP], [SECTION:METHODS]).
+Select exactly 3 papers from each section. You MUST output all three sections with exactly 3 papers each (9 total).
 Use only the block format below. No other text.
 
 Papers:
@@ -313,7 +374,6 @@ implication: broader research implication
 
 
 def parse_papers(raw_text):
-    """Parse [SECTION:X]...[/SECTION], [OVERVIEW]...[/OVERVIEW], and [PAPER]...[/PAPER] blocks."""
     sections = {}
     section_pattern = re.findall(r'\[SECTION:(\w+)\](.*?)\[/SECTION\]', raw_text, re.DOTALL)
     for sec_name, sec_body in section_pattern:
@@ -625,7 +685,7 @@ def main():
 
     print("\n[2] Fetching papers from journals...")
     papers = fetch_papers(seen_dois)
-    print(f"\n  Total new papers: {len(papers)}")
+    print(f"\n  Total papers selected: {len(papers)}")
     if not papers:
         print("  No new papers found. Exiting.")
         return
