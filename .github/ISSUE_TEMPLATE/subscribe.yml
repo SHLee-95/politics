@@ -13,5 +13,5 @@ body:
     attributes:
       label: 동의
       options:
-        - label: 매일 새벽 2시(Eastern) 논문 브리핑 이메일 수신에 동의합니다
+        - label: 매일 오전 9시(Eastern) 논문 브리핑 이메일 수신에 동의합니다
           required: true

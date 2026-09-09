@@ -51,7 +51,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `✅ **구독이 완료되었습니다!**\n\n**${email}** 으로 매일 새벽 2시(Eastern) 비교정치학·국제정치학 논문 브리핑이 발송됩니다.\n\n구독 취소를 원하시면 이 이슈에 \`unsubscribe\` 라고 댓글을 남겨주세요.`
+              body: `✅ **구독이 완료되었습니다!**\n\n**${email}** 으로 매일 오전 9시(Eastern) 비교정치학·국제정치학 논문 브리핑이 발송됩니다.\n\n구독 취소를 원하시면 이 이슈에 \`unsubscribe\` 라고 댓글을 남겨주세요.`
             });
             await github.rest.issues.update({
               owner: context.repo.owner,
