@@ -82,12 +82,23 @@ def fetch_formspree_submissions():
         lang_match = re.search(
             r"language[\s:]+(ko|en)", body_clean, re.IGNORECASE
         )
+        # topics field is a comma-joined list of topic ids from subscribe.html,
+        # e.g. "topics: conflict_war,peacekeeping,methods_theory". Missing/empty
+        # means the subscriber didn't select any (old form, or JS failure) --
+        # journal_crawler.py's subscriber_topics() treats that as "all topics".
+        topics_match = re.search(
+            r"topics[\s:]+([a-z_,\s]+)", body_clean, re.IGNORECASE
+        )
 
         if email_match:
+            topics = []
+            if topics_match:
+                topics = [t.strip() for t in topics_match.group(1).split(",") if t.strip()]
             submissions.append({
                 "id": msg_id.decode(),
                 "email": email_match.group(1).strip().lower(),
                 "language": lang_match.group(1).lower() if lang_match else "ko",
+                "topics": topics,
             })
             mail.store(msg_id, "+FLAGS", "\\Seen")
         else:
@@ -212,11 +223,15 @@ def main():
 
         subscriber_email = sub["email"]
         language = sub["language"]
+        topics = sub.get("topics") or []
 
         if subscriber_email not in existing_emails:
-            subscribers.append({"email": subscriber_email, "language": language})
+            record = {"email": subscriber_email, "language": language}
+            if topics:
+                record["topics"] = topics
+            subscribers.append(record)
             existing_emails.add(subscriber_email)
-            print(f"Added: {subscriber_email} [{language}]")
+            print(f"Added: {subscriber_email} [{language}] topics={topics or 'ALL'}")
             send_confirmation(subscriber_email, language)
             new_count += 1
         else:

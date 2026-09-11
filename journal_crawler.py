@@ -23,7 +23,17 @@ OUTPUT_DIR = Path("output md files")
 SEEN_DOIS_FILE = Path("seen_dois.json")
 SUBSCRIBERS_FILE = Path("subscribers.json")
 FETCH_PER_JOURNAL = 20   # increased for better coverage
-MIN_PER_SECTION = 3      # minimum papers per section sent to AI (AI picks 3 from these)
+MIN_PER_SECTION = 2      # papers sampled per topic sent to AI (10 topics now, was 3 sections × 3)
+
+# llama-3.3-70b-versatile was decommissioned by Groq on 2026-08-16 (free/dev tier),
+# which silently broke every run since then (generate_summary raised, main() crashed
+# before committing anything). Groq's docs suggest either openai/gpt-oss-120b (faster,
+# ~4x tok/s, simpler) or qwen/qwen3.6-27b (notably stronger reasoning/instruction-
+# following — better for the argument/significance analysis this bot writes). We use
+# qwen3.6-27b for the quality gain; reasoning_format="hidden" below keeps its <think>
+# tokens out of the response so the [SECTION]/[PAPER] block parser below still works.
+# See https://console.groq.com/docs/deprecations and https://console.groq.com/docs/reasoning
+GROQ_MODEL = "qwen/qwen3.6-27b"
 
 JOURNALS = [
     {"name": "International Organization",                  "issn": "0020-8183",  "field": "ir"},
@@ -81,52 +91,90 @@ JOURNALS = [
 ]
 
 # Map journal field → email section
-FIELD_TO_SECTION = {
-    "ir":      "IR",
-    "cp":      "CP",
-    "methods": "METHODS",
-    # "general" is content-classified — see classify_general_paper()
+# Fine-grained topic taxonomy subscribers can pick from individually (added 2026-09,
+# replacing the old fixed IR/CP/METHODS 3-bucket split). Each paper is classified into
+# exactly one topic (its highest-scoring keyword match; ties/no-match fall to
+# "methods_theory" as a catch-all, same behavior as the old classify_general_paper()).
+TOPIC_META = {
+    "conflict_war": {
+        "ko": "분쟁·전쟁", "en": "Conflict & War",
+        "color": "#B91C1C", "bg": "#FEF2F2",
+        "keywords": ["war", "civil war", "armed conflict", "political violence",
+                     "insurgency", "terrorism", "coercion", "military intervention"],
+    },
+    "peacekeeping": {
+        "ko": "평화유지·재건", "en": "Peacekeeping & Peacebuilding",
+        "color": "#0369A1", "bg": "#EFF8FF",
+        "keywords": ["peacekeeping", "peacebuilding", "peace agreement", "post-conflict",
+                     "conflict resolution", "mediation", "reconciliation", "ceasefire"],
+    },
+    "alliances_security": {
+        "ko": "동맹·안보", "en": "Alliances & Security",
+        "color": "#B45309", "bg": "#FFFBEB",
+        "keywords": ["alliance", "deterrence", "nuclear", "security", "geopolitics",
+                     "power transition", "hegemony", "arms race", "military spending"],
+    },
+    "civil_military": {
+        "ko": "민군관계", "en": "Civil-Military Relations",
+        "color": "#9D174D", "bg": "#FDF2F8",
+        "keywords": ["civil-military", "military coup", "armed forces", "military regime",
+                     "military rule", "junta", "officer corps"],
+    },
+    "diplomacy_fp": {
+        "ko": "외교·대외정책", "en": "Diplomacy & Foreign Policy",
+        "color": "#155E75", "bg": "#ECFEFF",
+        "keywords": ["foreign policy", "diplomacy", "sanction", "trade", "multilateral",
+                     "treaty", "international organization", "international norm",
+                     "refugee", "migration", "climate"],
+    },
+    "democracy_elections": {
+        "ko": "민주주의·선거", "en": "Democracy & Elections",
+        "color": "#065F46", "bg": "#F0FBF7",
+        "keywords": ["democracy", "democratization", "election", "voting", "electoral",
+                     "referendum", "campaign"],
+    },
+    "authoritarianism": {
+        "ko": "권위주의", "en": "Authoritarianism",
+        "color": "#7C2D12", "bg": "#FFF7ED",
+        "keywords": ["autocracy", "authoritarianism", "repression", "regime survival",
+                     "dictatorship", "propaganda", "censorship"],
+    },
+    "parties_institutions": {
+        "ko": "정당·제도", "en": "Parties & Institutions",
+        "color": "#3730A3", "bg": "#EEF2FF",
+        "keywords": ["party", "legislature", "governance", "state capacity",
+                     "institution", "bureaucracy", "judiciary", "coalition"],
+    },
+    "identity_movements": {
+        "ko": "정체성·사회운동", "en": "Identity & Social Movements",
+        "color": "#86198F", "bg": "#FDF4FF",
+        "keywords": ["populism", "polarization", "nationalism", "ethnic", "identity",
+                     "protest", "revolution", "social movement", "human rights",
+                     "civil society", "inequality"],
+    },
+    "methods_theory": {
+        "ko": "방법론 및 이론", "en": "Methods & Theory",
+        "color": "#4C1D95", "bg": "#F5F0FD",
+        "keywords": ["causal inference", "regression", "experiment", "survey",
+                     "measurement", "qca", "formal model", "machine learning",
+                     "panel data", "research design"],
+    },
 }
+TOPIC_IDS = list(TOPIC_META.keys())
 
-IR_KEYWORDS = [
-    "international", "foreign policy", "alliance", "war", "conflict", "deterrence",
-    "nuclear", "sanction", "diplomacy", "hegemony", "power transition", "security",
-    "geopolitics", "trade", "multilateral", "treaty", "refugee", "migration",
-    "civil-military", "military", "armed", "peace",
-]
-CP_KEYWORDS = [
-    "democracy", "democratization", "autocracy", "authoritarianism", "election",
-    "voting", "electoral", "party", "legislature", "populism", "polarization",
-    "nationalism", "ethnic", "identity", "protest", "revolution", "social movement",
-    "comparative", "regime", "governance", "state capacity", "inequality",
-    "human rights", "civil society",
-]
 
-def classify_general_paper(paper):
-    """Classify a general-journal paper into IR, CP, or METHODS by content."""
+def classify_topic(paper):
+    """Classify a paper into exactly one topic id by keyword score. Falls back to
+    methods_theory (catch-all) when nothing matches."""
     title = (paper.get("title") or [""])[0].lower()
-    abstract = paper.get("abstract", "").lower()
+    abstract = clean_abstract(paper.get("abstract", "")).lower()
     text = title + " " + abstract
-    ir_score = sum(1 for kw in IR_KEYWORDS if kw in text)
-    cp_score = sum(1 for kw in CP_KEYWORDS if kw in text)
-    if ir_score == 0 and cp_score == 0:
-        return "METHODS"
-    return "IR" if ir_score >= cp_score else "CP"
-
-KEYWORDS = [
-    "democracy", "democratization", "autocracy", "authoritarianism",
-    "election", "voting", "electoral", "civil war", "armed conflict",
-    "political violence", "peace", "foreign policy", "diplomacy", "alliance",
-    "international trade", "economic sanction", "international organization",
-    "multilateralism", "regime", "governance", "state capacity",
-    "populism", "polarization", "nationalism", "identity", "ethnicity",
-    "human rights", "international norm", "inequality", "protest",
-    "social movement", "revolution", "coercion", "hegemony",
-    "power transition", "nuclear", "deterrence", "refugee", "migration",
-    "climate", "comparative politics", "international relations",
-    "causal inference", "regression", "experiment", "survey", "measurement",
-    "civil-military", "military",
-]
+    scores = {
+        tid: sum(1 for kw in meta["keywords"] if kw in text)
+        for tid, meta in TOPIC_META.items()
+    }
+    best_id = max(scores, key=scores.get)
+    return best_id if scores[best_id] > 0 else "methods_theory"
 
 
 def load_subscribers():
@@ -141,6 +189,15 @@ def load_subscribers():
                 result.append(item)
         return result
     return [{"email": RECIPIENT_EMAIL, "language": "ko"}]
+
+
+def subscriber_topics(sub):
+    """Topic ids a subscriber wants. Missing/empty 'topics' = no preference recorded
+    (pre-dates this feature or old JSON entry) → full digest, same as before."""
+    topics = sub.get("topics")
+    if not topics:
+        return list(TOPIC_IDS)
+    return [tid for tid in topics if tid in TOPIC_META] or list(TOPIC_IDS)
 
 
 def load_seen_dois():
@@ -160,20 +217,14 @@ def clean_abstract(text):
     return re.sub(r"\s+", " ", text).strip()
 
 
-def keyword_match(paper):
-    title = (paper.get("title") or [""])[0].lower()
-    abstract = paper.get("abstract", "").lower()
-    return any(kw.lower() in (title + " " + abstract) for kw in KEYWORDS)
-
-
 def fetch_papers(seen_dois):
-    """Fetch papers guaranteeing MIN_PER_SECTION candidates per section."""
+    """Fetch papers and classify each into one of TOPIC_IDS, guaranteeing up to
+    MIN_PER_SECTION candidates per topic (any journal can contribute to any topic —
+    classification is by content, not by the journal's declared field)."""
     cr = Crossref()
-    by_section = {"IR": [], "CP": [], "METHODS": []}
+    by_topic = {tid: [] for tid in TOPIC_IDS}
 
     for journal in JOURNALS:
-        field = journal.get("field", "general")
-
         try:
             result = cr.works(
                 filter={"issn": journal["issn"]},
@@ -186,33 +237,25 @@ def fetch_papers(seen_dois):
             print(f"  [SKIP] {journal['name']}: {e}")
             continue
 
-        # methods and general bypass keyword filter
-        skip_keyword = field in ("methods", "general")
-        candidates = [
-            i for i in items
-            if i.get("DOI", "") not in seen_dois and (skip_keyword or keyword_match(i))
-        ]
+        candidates = [i for i in items if i.get("DOI", "") not in seen_dois]
         for p in candidates:
             p["_journal_name"] = journal["name"]
-            p["_field"] = field
-            if field == "general":
-                section = classify_general_paper(p)
-            else:
-                section = FIELD_TO_SECTION.get(field, "IR")
-            p["_section"] = section
-            by_section[section].append(p)
+            topic = classify_topic(p)
+            p["_topic"] = topic
+            by_topic[topic].append(p)
         print(f"  {journal['name']}: {len(candidates)} candidates distributed")
 
-    # Sample MIN_PER_SECTION from each section
+    # Sample MIN_PER_SECTION from each topic
     collected = []
-    for section, papers in by_section.items():
+    for topic, papers in by_topic.items():
+        label = TOPIC_META[topic]["en"]
         if not papers:
-            print(f"  [WARNING] {section}: 0 papers — section will be missing from email")
+            print(f"  [WARNING] {label}: 0 papers — topic will be missing from email")
             continue
         random.shuffle(papers)
         sample = papers[:MIN_PER_SECTION]
         collected.extend(sample)
-        print(f"  → {section}: {len(sample)} papers sent to AI")
+        print(f"  → {label}: {len(sample)} papers sent to AI")
 
     return collected
 
@@ -243,7 +286,7 @@ def build_prompt_paper_list(papers):
         authors = format_authors(p)
         year = format_year(p)
         journal = p.get("_journal_name", "")
-        section = p.get("_section", "IR")
+        section = p.get("_topic", "methods_theory")
         abstract = clean_abstract(p.get("abstract", ""))[:300]
         doi = p.get("DOI", "")
         doi_url = f"https://doi.org/{doi}" if doi else p.get("URL", "")
@@ -263,20 +306,19 @@ def generate_summary(papers, language="ko"):
     client = Groq(api_key=GROQ_API_KEY)
     paper_text = build_prompt_paper_list(papers)
 
+    # Build the per-topic format block dynamically from whichever topics are
+    # actually present in `papers` today (was hardcoded to IR/CP/METHODS; now
+    # up to len(TOPIC_META) topics, each with however many papers were sampled).
+    topics_present = []
+    for tid in TOPIC_IDS:
+        n = sum(1 for p in papers if p.get("_topic") == tid)
+        if n:
+            topics_present.append((tid, n))
+
     if language == "ko":
-        prompt = f"""당신은 비교정치학·국제정치학 전문 연구자입니다.
-아래 논문 목록은 이미 섹션([SECTION:IR], [SECTION:CP], [SECTION:METHODS])으로 분류되어 있습니다.
-각 섹션에서 반드시 정확히 3편을 선정해 브리핑하세요. IR 3편, CP 3편, METHODS 3편 — 총 9편을 반드시 출력해야 합니다.
-반드시 아래 블록 형식만 사용하세요. 다른 텍스트는 절대 추가하지 마세요.
-
-논문 목록:
-{paper_text}
-
-출력 형식 (이 형식을 정확히 따르세요):
-
-[SECTION:IR]
+        block_template = """[SECTION:{tid}]
 [OVERVIEW]
-summary: 오늘 국제정치 분야에서 공통적으로 드러나는 핵심 흐름과 주요 발견을 2-3문장으로 요약
+summary: 오늘 "{label}" 분야에서 공통적으로 드러나는 핵심 흐름과 주요 발견을 2-3문장으로 요약
 implication: 이 분야 논문 묶음이 갖는 연구 시사점을 1-2문장으로 정리
 [/OVERVIEW]
 [PAPER]
@@ -286,48 +328,28 @@ argument: 논문의 핵심 주장을 2-3문장으로. 무엇을 주장하며 어
 significance: 이론적·정책적 의의 1-2문장. 기존 문헌과 어떻게 다른가.
 url: DOI_URL (논문 목록의 DOI_URL을 그대로 복사, 절대 변경하지 말 것)
 [/PAPER]
-[PAPER]
-... (2번째 IR 논문)
-[/PAPER]
-[PAPER]
-... (3번째 IR 논문)
-[/PAPER]
-[/SECTION]
+(위 [PAPER] 블록을 이 섹션의 논문 수({n}편)만큼 정확히 반복)
+[/SECTION]"""
+        format_blocks = "\n\n".join(
+            block_template.format(tid=tid, label=TOPIC_META[tid]["ko"], n=n)
+            for tid, n in topics_present
+        )
+        prompt = f"""당신은 비교정치학·국제정치학 전문 연구자입니다.
+아래 논문 목록은 이미 세부 주제({", ".join(f"[SECTION:{tid}]" for tid, _ in topics_present)})로 분류되어 있습니다.
+각 섹션에 딸린 논문을 전부 브리핑하세요 (섹션마다 몇 편이 딸려 있는지는 아래 형식에 표시됨). 논문을 추가하거나 빼지 마세요.
+반드시 아래 블록 형식만 사용하세요. 다른 텍스트는 절대 추가하지 마세요.
 
-[SECTION:CP]
-[OVERVIEW]
-summary: 오늘 비교정치 분야의 핵심 흐름 요약
-implication: 연구 시사점 요약
-[/OVERVIEW]
-[PAPER]
-... (비교정치 논문 3편, 동일 형식)
-[/PAPER]
-[/SECTION]
-
-[SECTION:METHODS]
-[OVERVIEW]
-summary: 오늘 방법론·이론 분야의 핵심 흐름 요약
-implication: 연구 시사점 요약
-[/OVERVIEW]
-[PAPER]
-... (방법론·이론 논문 3편, 동일 형식)
-[/PAPER]
-[/SECTION]
-"""
-    else:
-        prompt = f"""You are an expert in comparative politics and international relations.
-The papers below are already tagged by section ([SECTION:IR], [SECTION:CP], [SECTION:METHODS]).
-Select exactly 3 papers from each section. You MUST output all three sections with exactly 3 papers each (9 total).
-Use only the block format below. No other text.
-
-Papers:
+논문 목록:
 {paper_text}
 
-Format (follow exactly):
+출력 형식 (이 형식을 정확히 따르세요, 섹션 순서도 유지):
 
-[SECTION:IR]
+{format_blocks}
+"""
+    else:
+        block_template = """[SECTION:{tid}]
 [OVERVIEW]
-summary: 2-3 sentence summary of the main pattern or overall finding across today's IR papers
+summary: 2-3 sentence summary of the main pattern or overall finding across today's "{label}" papers
 implication: 1-2 sentence statement of the broader research implication for the section
 [/OVERVIEW]
 [PAPER]
@@ -337,40 +359,31 @@ argument: Core argument in 2-3 sentences. What is claimed and how is it supporte
 significance: Theoretical and/or policy significance in 1-2 sentences. How does it advance the literature?
 url: DOI_URL (copy DOI_URL exactly from the paper list, do not alter)
 [/PAPER]
-[PAPER]
-... (2nd IR paper)
-[/PAPER]
-[PAPER]
-... (3rd IR paper)
-[/PAPER]
-[/SECTION]
+(repeat the [PAPER] block above exactly {n} time(s) — once per paper in this section)
+[/SECTION]"""
+        format_blocks = "\n\n".join(
+            block_template.format(tid=tid, label=TOPIC_META[tid]["en"], n=n)
+            for tid, n in topics_present
+        )
+        prompt = f"""You are an expert in comparative politics and international relations.
+The papers below are already tagged by topic ({", ".join(f"[SECTION:{tid}]" for tid, _ in topics_present)}).
+Brief every paper listed under each section (the exact count per section is shown in the format below). Do not add or drop papers.
+Use only the block format below. No other text.
 
-[SECTION:CP]
-[OVERVIEW]
-summary: overall pattern across today's comparative politics papers
-implication: broader research implication
-[/OVERVIEW]
-[PAPER]
-... (3 comparative politics papers, same format)
-[/PAPER]
-[/SECTION]
+Papers:
+{paper_text}
 
-[SECTION:METHODS]
-[OVERVIEW]
-summary: overall pattern across today's methods/theory papers
-implication: broader research implication
-[/OVERVIEW]
-[PAPER]
-... (3 methods/theory papers, same format)
-[/PAPER]
-[/SECTION]
+Format (follow exactly, keep section order):
+
+{format_blocks}
 """
 
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model=GROQ_MODEL,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3,
-        max_tokens=3000,
+        max_tokens=8000,
+        reasoning_format="hidden",
     )
     return response.choices[0].message.content
 
@@ -400,20 +413,26 @@ def parse_papers(raw_text):
     return sections
 
 
-def build_html_email(raw_summary, today_str, language="ko"):
+def build_html_email(raw_summary, today_str, language="ko", allowed_topics=None):
+    """allowed_topics: iterable of topic ids to include (subscriber's chosen topics).
+    None means all topics — preserves old behavior for subscribers without a
+    'topics' field on their record."""
     sections = parse_papers(raw_summary)
+    allowed = set(allowed_topics) if allowed_topics is not None else set(TOPIC_IDS)
 
     try:
         parsed_date = datetime.strptime(today_str, "%Y-%m-%d")
     except ValueError:
         parsed_date = None
 
+    label_key = "ko" if language == "ko" else "en"
+    section_configs = [
+        (tid, TOPIC_META[tid][label_key], TOPIC_META[tid]["color"], TOPIC_META[tid]["bg"])
+        for tid in TOPIC_IDS
+        if tid in allowed
+    ]
+
     if language == "ko":
-        section_configs = [
-            ("IR",      "국제정치",        "#1E40AF", "#F0F4FF"),
-            ("CP",      "비교정치",        "#065F46", "#F0FBF7"),
-            ("METHODS", "방법론 및 이론", "#4C1D95", "#F5F0FD"),
-        ]
         font_stack = '\"Pretendard\", -apple-system, BlinkMacSystemFont, \"Apple SD Gothic Neo\", \"Malgun Gothic\", sans-serif'
         title_stack = '\"Pretendard\", -apple-system, BlinkMacSystemFont, \"Apple SD Gothic Neo\", \"Malgun Gothic\", sans-serif'
         label_arg  = "핵심 주장"
@@ -436,11 +455,6 @@ def build_html_email(raw_summary, today_str, language="ko"):
         )
         unsubscribe_text = "구독 해지"
     else:
-        section_configs = [
-            ("IR",      "International Relations", "#1E40AF", "#F0F4FF"),
-            ("CP",      "Comparative Politics",    "#065F46", "#F0FBF7"),
-            ("METHODS", "Methods & Theory",        "#4C1D95", "#F5F0FD"),
-        ]
         font_stack = '\"Pretendard\", -apple-system, BlinkMacSystemFont, \"Helvetica Neue\", Arial, sans-serif'
         title_stack = '\"Pretendard\", -apple-system, BlinkMacSystemFont, \"Helvetica Neue\", Arial, sans-serif'
         label_arg  = "Argument"
@@ -584,6 +598,11 @@ def build_html_email(raw_summary, today_str, language="ko"):
   </div>
 </div>"""
 
+    if not sections_html:
+        # None of this subscriber's chosen topics had any papers today — caller
+        # should skip sending rather than deliver an empty briefing.
+        return None
+
     return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -655,7 +674,7 @@ def build_html_email(raw_summary, today_str, language="ko"):
     </div>
     <p class="footer-text" style="margin:16px 0 0;text-align:center;font-size:11.5px;
        line-height:1.6;color:#9CA3AF;font-family:{font_stack};">
-      PoliBot &nbsp;·&nbsp; Groq Llama 3.3 70B &nbsp;·&nbsp; Crossref API
+      PoliBot &nbsp;·&nbsp; Groq Qwen3.6 27B &nbsp;·&nbsp; Crossref API
       &nbsp;·&nbsp;
       <a href="https://shlee-95.github.io/politics/subscribe.html"
          style="color:#6B7280;text-decoration:underline;">{unsubscribe_text}</a>
@@ -667,6 +686,24 @@ def build_html_email(raw_summary, today_str, language="ko"):
 </table>
 </body>
 </html>"""
+
+
+def send_alert_email(error_text):
+    """Best-effort plain-text alert to the bot owner when a run fails partway
+    through, so a breaking change (e.g. a decommissioned model) surfaces the
+    same day instead of silently going unnoticed for weeks."""
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(GMAIL_USER, GMAIL_PASSWORD)
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = f"[PoliBot ERROR] {datetime.now().strftime('%Y-%m-%d')}"
+            msg["From"] = f"Pol-Sci Journal Bot <{GMAIL_USER}>"
+            msg["To"] = RECIPIENT_EMAIL
+            msg.attach(MIMEText(f"PoliBot crawler run failed:\n\n{error_text}", "plain", "utf-8"))
+            server.sendmail(GMAIL_USER, RECIPIENT_EMAIL, msg.as_string())
+            print("  Alert email sent.")
+    except Exception as e:
+        print(f"  [WARNING] Could not send alert email either: {e}")
 
 
 def send_email(subject, html_body, recipients):
@@ -700,27 +737,40 @@ def main():
     subscribers = load_subscribers()
     has_en = any(s.get("language") == "en" for s in subscribers)
 
-    print("\n[4] Generating AI summary...")
-    summary_ko = generate_summary(papers, language="ko")
-    summary_en = generate_summary(papers, language="en") if has_en else None
+    try:
+        print("\n[4] Generating AI summary...")
+        summary_ko = generate_summary(papers, language="ko")
+        summary_en = generate_summary(papers, language="en") if has_en else None
 
-    print("\n[5] Sending emails...")
-    recipients_ko = [s["email"] for s in subscribers if s.get("language", "ko") != "en"]
-    recipients_en = [s["email"] for s in subscribers if s.get("language") == "en"]
+        print("\n[5] Sending emails...")
+        # Group subscribers by (language, exact topic set) so identical digests are
+        # built once and sent to everyone who wants that combination.
+        groups = {}
+        for s in subscribers:
+            lang = s.get("language", "ko")
+            if lang == "en" and not summary_en:
+                continue
+            topics_key = tuple(sorted(subscriber_topics(s)))
+            groups.setdefault((lang, topics_key), []).append(s["email"])
 
-    if recipients_ko:
-        html_ko = build_html_email(summary_ko, today_str, language="ko")
-        send_email(f"[정치학 브리핑] {today_str}", html_ko, recipients_ko)
+        for (lang, topics_key), emails in groups.items():
+            summary = summary_en if lang == "en" else summary_ko
+            html = build_html_email(summary, today_str, language=lang, allowed_topics=topics_key)
+            if not html:
+                print(f"  [SKIP] {len(emails)} subscriber(s) [{lang}, {len(topics_key)} topic(s)] — no matching papers today")
+                continue
+            subject = f"[Poli-Sci Briefing] {today_str}" if lang == "en" else f"[정치학 브리핑] {today_str}"
+            send_email(subject, html, emails)
 
-    if recipients_en and summary_en:
-        html_en = build_html_email(summary_en, today_str, language="en")
-        send_email(f"[Poli-Sci Briefing] {today_str}", html_en, recipients_en)
+        print("\n[6] Updating seen DOIs...")
+        seen_dois.update(p.get("DOI","") for p in papers if p.get("DOI"))
+        save_seen_dois(seen_dois)
 
-    print("\n[6] Updating seen DOIs...")
-    seen_dois.update(p.get("DOI","") for p in papers if p.get("DOI"))
-    save_seen_dois(seen_dois)
-
-    print("\n=== Done ===")
+        print("\n=== Done ===")
+    except Exception as e:
+        print(f"\n[FATAL] Run failed at steps 4-6: {e}")
+        send_alert_email(f"{type(e).__name__}: {e}")
+        raise  # keep failing the GH Actions step so the run still shows red
 
 
 if __name__ == "__main__":

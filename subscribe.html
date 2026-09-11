@@ -34,6 +34,12 @@
     .success-title{font-size:18px;font-weight:800;color:#0f172a;margin-bottom:8px}
     .success-desc{font-size:13px;color:#64748b;line-height:1.6}
     .err-msg{color:#ef4444;font-size:12px;margin-top:8px;display:none}
+    .topics-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px}
+    .topics-selectall{font-size:12px;font-weight:600;color:#3b82f6;cursor:pointer;user-select:none}
+    .topics-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px}
+    .topic-chip{display:flex;align-items:center;gap:7px;padding:9px 10px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:12.5px;color:#334155;cursor:pointer;user-select:none;transition:border .15s,background .15s}
+    .topic-chip input{margin:0;accent-color:#0f172a}
+    .topic-chip.checked{border-color:#0f172a;background:#f8fafc;font-weight:600;color:#0f172a}
   </style>
 </head>
 <body>
@@ -58,6 +64,12 @@
           <div class="lang-btn" id="btn-en" onclick="setLang('en')">English</div>
         </div>
 
+        <div class="topics-head">
+          <div class="field-label" style="margin-bottom:0">관심 주제 / Topics</div>
+          <div class="topics-selectall" id="selectall-btn" onclick="toggleAll()">전체 해제</div>
+        </div>
+        <div class="topics-grid" id="topics-grid"></div>
+
         <div class="field-label">이메일 주소 / Email</div>
         <input type="email" id="email" placeholder="name@example.com" autocomplete="email">
         <div class="err-msg" id="err-msg">올바른 이메일 주소를 입력해 주세요.</div>
@@ -79,11 +91,75 @@
 
   <script>
     var lang = 'ko';
+    // Topic ids must match TOPIC_META in journal_crawler.py exactly.
+    var TOPICS = [
+      { id: 'conflict_war',          ko: '분쟁·전쟁',        en: 'Conflict & War' },
+      { id: 'peacekeeping',          ko: '평화유지·재건',    en: 'Peacekeeping & Peacebuilding' },
+      { id: 'alliances_security',    ko: '동맹·안보',        en: 'Alliances & Security' },
+      { id: 'civil_military',        ko: '민군관계',         en: 'Civil-Military Relations' },
+      { id: 'diplomacy_fp',          ko: '외교·대외정책',    en: 'Diplomacy & Foreign Policy' },
+      { id: 'democracy_elections',   ko: '민주주의·선거',    en: 'Democracy & Elections' },
+      { id: 'authoritarianism',      ko: '권위주의',         en: 'Authoritarianism' },
+      { id: 'parties_institutions',  ko: '정당·제도',        en: 'Parties & Institutions' },
+      { id: 'identity_movements',    ko: '정체성·사회운동',  en: 'Identity & Social Movements' },
+      { id: 'methods_theory',        ko: '방법론 및 이론',   en: 'Methods & Theory' }
+    ];
+
+    function renderTopics() {
+      var grid = document.getElementById('topics-grid');
+      grid.innerHTML = '';
+      TOPICS.forEach(function(t) {
+        var label = document.createElement('label');
+        label.className = 'topic-chip checked';
+        label.id = 'chip-' + t.id;
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = true;
+        cb.value = t.id;
+        cb.className = 'topic-cb';
+        cb.onchange = function() {
+          label.className = 'topic-chip' + (cb.checked ? ' checked' : '');
+          updateSelectAllLabel();
+        };
+        var span = document.createElement('span');
+        span.textContent = t[lang];
+        span.id = 'chip-label-' + t.id;
+        label.appendChild(cb);
+        label.appendChild(span);
+        grid.appendChild(label);
+      });
+      updateSelectAllLabel();
+    }
+
+    function updateSelectAllLabel() {
+      var boxes = document.querySelectorAll('.topic-cb');
+      var allChecked = Array.prototype.every.call(boxes, function(b) { return b.checked; });
+      document.getElementById('selectall-btn').textContent = allChecked
+        ? (lang === 'en' ? 'Deselect all' : '전체 해제')
+        : (lang === 'en' ? 'Select all' : '전체 선택');
+    }
+
+    function toggleAll() {
+      var boxes = document.querySelectorAll('.topic-cb');
+      var allChecked = Array.prototype.every.call(boxes, function(b) { return b.checked; });
+      boxes.forEach(function(b) {
+        b.checked = !allChecked;
+        document.getElementById('chip-' + b.value).className = 'topic-chip' + (b.checked ? ' checked' : '');
+      });
+      updateSelectAllLabel();
+    }
+
     function setLang(l) {
       lang = l;
       document.getElementById('btn-ko').className = 'lang-btn' + (l==='ko' ? ' active' : '');
       document.getElementById('btn-en').className = 'lang-btn' + (l==='en' ? ' active' : '');
+      TOPICS.forEach(function(t) {
+        var el = document.getElementById('chip-label-' + t.id);
+        if (el) el.textContent = t[lang];
+      });
+      updateSelectAllLabel();
     }
+    renderTopics();
     async function subscribe() {
       var emailEl = document.getElementById('email');
       var email = emailEl.value.trim();
@@ -99,6 +175,17 @@
       emailEl.className = '';
       errEl.style.display = 'none';
 
+      var selectedTopics = Array.prototype.filter.call(
+        document.querySelectorAll('.topic-cb'), function(b) { return b.checked; }
+      ).map(function(b) { return b.value; });
+      if (selectedTopics.length === 0) {
+        errEl.style.display = 'block';
+        errEl.textContent = lang === 'en'
+          ? 'Please select at least one topic.'
+          : '주제를 하나 이상 선택해 주세요.';
+        return;
+      }
+
       var btn = document.getElementById('submit-btn');
       btn.disabled = true;
       btn.textContent = lang === 'en' ? 'Submitting...' : '처리 중...';
@@ -107,7 +194,7 @@
         var res = await fetch('https://formspree.io/f/mjgjowen', {
           method: 'POST',
           headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email, language: lang })
+          body: JSON.stringify({ email: email, language: lang, topics: selectedTopics.join(',') })
         });
         if (res.ok) {
           document.getElementById('form-area').style.display = 'none';
