@@ -35,6 +35,22 @@ MIN_PER_SECTION = 2      # papers sampled per topic sent to AI (10 topics now, w
 # See https://console.groq.com/docs/deprecations and https://console.groq.com/docs/reasoning
 GROQ_MODEL = "qwen/qwen3.6-27b"
 
+
+def validate_runtime_config():
+    """Fail fast with a clear message when required secrets are missing."""
+    missing = []
+    if not GROQ_API_KEY:
+        missing.append("GROQ_API_KEY")
+    if not GMAIL_PASSWORD:
+        missing.append("GMAIL_PASSWORD")
+
+    if missing:
+        raise RuntimeError(
+            "Missing required environment variables: " + ", ".join(missing) +
+            ". Add them to your shell or .env file before running the crawler."
+        )
+
+
 JOURNALS = [
     {"name": "International Organization",                  "issn": "0020-8183",  "field": "ir"},
     {"name": "International Security",                      "issn": "0162-2889",  "field": "ir"},
@@ -302,6 +318,11 @@ def build_prompt_paper_list(papers):
 def generate_summary(papers, language="ko"):
     if not papers:
         return "수집된 논문이 없습니다." if language == "ko" else "No papers collected."
+
+    if not GROQ_API_KEY:
+        raise RuntimeError(
+            "GROQ_API_KEY is missing. Set it in the environment or .env before running the bot."
+        )
 
     client = Groq(api_key=GROQ_API_KEY)
     paper_text = build_prompt_paper_list(papers)
@@ -692,6 +713,9 @@ def send_alert_email(error_text):
     """Best-effort plain-text alert to the bot owner when a run fails partway
     through, so a breaking change (e.g. a decommissioned model) surfaces the
     same day instead of silently going unnoticed for weeks."""
+    if not GMAIL_PASSWORD:
+        print("  [WARNING] GMAIL_PASSWORD is missing; skipping alert email.")
+        return
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(GMAIL_USER, GMAIL_PASSWORD)
@@ -707,6 +731,9 @@ def send_alert_email(error_text):
 
 
 def send_email(subject, html_body, recipients):
+    if not GMAIL_PASSWORD:
+        print("  [WARNING] GMAIL_PASSWORD is missing; skipping outgoing digest email.")
+        return
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
         server.login(GMAIL_USER, GMAIL_PASSWORD)
         for recipient in recipients:
@@ -720,6 +747,12 @@ def send_email(subject, html_body, recipients):
 
 
 def main():
+    try:
+        validate_runtime_config()
+    except RuntimeError as exc:
+        print(f"\n[CONFIG] {exc}")
+        return
+
     today_str = datetime.now().strftime("%Y-%m-%d")
     print(f"\n=== Journal Crawler [{today_str}] ===\n")
 
