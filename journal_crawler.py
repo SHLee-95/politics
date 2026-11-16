@@ -246,7 +246,9 @@ def fetch_papers(seen_dois):
     # mailto puts requests in Crossref's "polite" pool, which has higher rate
     # limits; without it, bursts of 52 journal queries were hitting 429 Too Many
     # Requests and whole topics (e.g. Civil-Military Relations) came back empty.
-    cr = Crossref(mailto=GMAIL_USER)
+    # habanero's default 5s timeout was too short for Crossref's polite pool:
+    # a trial run lost 24 of 52 journals to 'The read operation timed out'.
+    cr = Crossref(mailto=GMAIL_USER, timeout=30)
     by_topic = {tid: [] for tid in TOPIC_IDS}
 
     for journal in JOURNALS:
@@ -262,9 +264,12 @@ def fetch_papers(seen_dois):
                 items = result.get("message", {}).get("items", [])
                 break
             except Exception as e:
-                if "429" in str(e) and attempt < 3:
+                msg = str(e).lower()
+                transient = "429" in msg or "timed out" in msg or "timeout" in msg
+                if transient and attempt < 3:
                     wait = 2 ** (attempt + 1)  # 2s, 4s, 8s
-                    print(f"  [RETRY] {journal['name']}: rate limited, waiting {wait}s")
+                    reason = "rate limited" if "429" in msg else "timed out"
+                    print(f"  [RETRY] {journal['name']}: {reason}, waiting {wait}s")
                     time.sleep(wait)
                     continue
                 print(f"  [SKIP] {journal['name']}: {e}")
