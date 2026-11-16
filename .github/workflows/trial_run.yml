@@ -1,0 +1,34 @@
+name: 시범 실행 (Trial Run)
+
+# Manual test run: same crawler, but the digest goes only to the owner
+# (ko + en), the subject is tagged [시범 실행], and seen_dois.json is not
+# updated or committed — so real subscribers and the next scheduled run
+# are unaffected.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trial-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5.4.0
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run journal crawler (trial)
+        env:
+          GMAIL_PASSWORD: ${{ secrets.GMAIL_PASSWORD }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          TRIAL_RUN: "1"
+          PYTHONUNBUFFERED: "1"
+        run: python journal_crawler.py

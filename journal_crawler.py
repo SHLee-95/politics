@@ -19,6 +19,10 @@ GMAIL_USER = "poliscibot@gmail.com"
 GMAIL_PASSWORD = os.environ.get("GMAIL_PASSWORD", "")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 RECIPIENT_EMAIL = "slee275@buffalo.edu"
+# TRIAL_RUN=1 (set by the "시범 실행" workflow): send ko + en digests only to
+# RECIPIENT_EMAIL, tag the subject, and do not mark papers as seen, so the next
+# scheduled run for real subscribers is unaffected.
+TRIAL_RUN = os.environ.get("TRIAL_RUN", "") == "1"
 
 OUTPUT_DIR = Path("output md files")
 SEEN_DOIS_FILE = Path("seen_dois.json")
@@ -793,6 +797,12 @@ def main():
 
     print("\n[3] Loading subscribers...")
     subscribers = load_subscribers()
+    if TRIAL_RUN:
+        print(f"  [TRIAL] Sending only to {RECIPIENT_EMAIL} (ko + en); seen DOIs will not be updated")
+        subscribers = [
+            {"email": RECIPIENT_EMAIL, "language": "ko"},
+            {"email": RECIPIENT_EMAIL, "language": "en"},
+        ]
     has_en = any(s.get("language") == "en" for s in subscribers)
 
     try:
@@ -818,11 +828,16 @@ def main():
                 print(f"  [SKIP] {len(emails)} subscriber(s) [{lang}, {len(topics_key)} topic(s)] — no matching papers today")
                 continue
             subject = f"[Poli-Sci Briefing] {today_str}" if lang == "en" else f"[정치학 브리핑] {today_str}"
+            if TRIAL_RUN:
+                subject = f"[시범 실행] {subject}"
             send_email(subject, html, emails)
 
         print("\n[6] Updating seen DOIs...")
         seen_dois.update(p.get("DOI","") for p in papers if p.get("DOI"))
-        save_seen_dois(seen_dois)
+        if TRIAL_RUN:
+            print("  [TRIAL] Skipping seen DOIs update")
+        else:
+            save_seen_dois(seen_dois)
 
         print("\n=== Done ===")
     except Exception as e:
