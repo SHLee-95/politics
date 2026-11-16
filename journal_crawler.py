@@ -3,6 +3,7 @@ import random
 import smtplib
 import json
 import re
+import time
 from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -25,15 +26,16 @@ SUBSCRIBERS_FILE = Path("subscribers.json")
 FETCH_PER_JOURNAL = 20   # increased for better coverage
 MIN_PER_SECTION = 2      # papers sampled per topic sent to AI (10 topics now, was 3 sections × 3)
 
-# llama-3.3-70b-versatile was decommissioned by Groq on 2026-08-16 (free/dev tier),
-# which silently broke every run since then (generate_summary raised, main() crashed
-# before committing anything). Groq's docs suggest either openai/gpt-oss-120b (faster,
-# ~4x tok/s, simpler) or qwen/qwen3.6-27b (notably stronger reasoning/instruction-
-# following — better for the argument/significance analysis this bot writes). We use
-# qwen3.6-27b for the quality gain; reasoning_format="hidden" below keeps its <think>
-# tokens out of the response so the [SECTION]/[PAPER] block parser below still works.
+# Model history:
+# - llama-3.3-70b-versatile: decommissioned by Groq on 2026-08-16.
+# - qwen/qwen3.6-27b: a *Preview* model, dropped from Groq's self-serve catalog
+#   around 2026-10-24 (replaced by qwen3.8-27b), which made every daily run fail.
+# openai/gpt-oss-120b is a Production model on Groq, so it is far less likely to
+# disappear without notice. GPT-OSS returns its reasoning in a separate field
+# (include_reasoning=False drops it), so message.content stays clean for the
+# [SECTION]/[PAPER] block parser below.
 # See https://console.groq.com/docs/deprecations and https://console.groq.com/docs/reasoning
-GROQ_MODEL = "qwen/qwen3.6-27b"
+GROQ_MODEL = "openai/gpt-oss-120b"
 
 
 def validate_runtime_config():
@@ -189,7 +191,7 @@ def classify_topic(paper):
         tid: sum(1 for kw in meta["keywords"] if kw in text)
         for tid, meta in TOPIC_META.items()
     }
-    best_id = max(scores, key=scores.get)
+    best_id = max(scores, key=lambda topic_id: scores[topic_id])
     return best_id if scores[best_id] > 0 else "methods_theory"
 
 
@@ -237,20 +239,34 @@ def fetch_papers(seen_dois):
     """Fetch papers and classify each into one of TOPIC_IDS, guaranteeing up to
     MIN_PER_SECTION candidates per topic (any journal can contribute to any topic —
     classification is by content, not by the journal's declared field)."""
-    cr = Crossref()
+    # mailto puts requests in Crossref's "polite" pool, which has higher rate
+    # limits; without it, bursts of 52 journal queries were hitting 429 Too Many
+    # Requests and whole topics (e.g. Civil-Military Relations) came back empty.
+    cr = Crossref(mailto=GMAIL_USER)
     by_topic = {tid: [] for tid in TOPIC_IDS}
 
     for journal in JOURNALS:
-        try:
-            result = cr.works(
-                filter={"issn": journal["issn"]},
-                sort="published", order="desc",
-                limit=FETCH_PER_JOURNAL,
-                select=["DOI", "title", "author", "published", "abstract", "URL", "container-title"],
-            )
-            items = result.get("message", {}).get("items", [])
-        except Exception as e:
-            print(f"  [SKIP] {journal['name']}: {e}")
+        items = None
+        for attempt in range(4):
+            try:
+                result = cr.works(
+                    filter={"issn": journal["issn"]},
+                    sort="published", order="desc",
+                    limit=FETCH_PER_JOURNAL,
+                    select=["DOI", "title", "author", "published", "abstract", "URL", "container-title"],
+                )
+                items = result.get("message", {}).get("items", [])
+                break
+            except Exception as e:
+                if "429" in str(e) and attempt < 3:
+                    wait = 2 ** (attempt + 1)  # 2s, 4s, 8s
+                    print(f"  [RETRY] {journal['name']}: rate limited, waiting {wait}s")
+                    time.sleep(wait)
+                    continue
+                print(f"  [SKIP] {journal['name']}: {e}")
+                break
+        time.sleep(0.5)  # pace requests to stay under Crossref's rate limit
+        if items is None:
             continue
 
         candidates = [i for i in items if i.get("DOI", "") not in seen_dois]
@@ -403,10 +419,19 @@ Format (follow exactly, keep section order):
         model=GROQ_MODEL,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3,
-        max_tokens=8000,
-        reasoning_format="hidden",
+        # Reasoning tokens count against this budget on GPT-OSS, so leave headroom
+        # beyond the ~8k tokens of visible output the digest needs.
+        max_completion_tokens=16000,
+        reasoning_effort="low",
+        include_reasoning=False,
     )
-    return response.choices[0].message.content
+    content = (response.choices[0].message.content or "").strip()
+    if not content:
+        raise RuntimeError(
+            f"Groq returned an empty summary (model={GROQ_MODEL}, "
+            f"finish_reason={response.choices[0].finish_reason})"
+        )
+    return content
 
 
 def parse_papers(raw_text):
