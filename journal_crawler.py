@@ -328,7 +328,9 @@ def build_prompt_paper_list(papers):
         year = format_year(p)
         journal = p.get("_journal_name", "")
         section = p.get("_topic", "methods_theory")
-        abstract = clean_abstract(p.get("abstract", ""))[:300]
+        # 300 chars cut most abstracts mid-argument, and papers with no abstract
+        # were sent as a blank line, which invited the model to invent findings.
+        abstract = clean_abstract(p.get("abstract", ""))[:1200] or "(NO ABSTRACT AVAILABLE)"
         doi = p.get("DOI", "")
         doi_url = f"https://doi.org/{doi}" if doi else p.get("URL", "")
         lines.append(
@@ -384,6 +386,10 @@ url: DOI_URL (논문 목록의 DOI_URL을 그대로 복사, 절대 변경하지 
 아래 논문 목록은 이미 세부 주제({", ".join(f"[SECTION:{tid}]" for tid, _ in topics_present)})로 분류되어 있습니다.
 각 섹션에 딸린 논문을 전부 브리핑하세요 (섹션마다 몇 편이 딸려 있는지는 아래 형식에 표시됨). 논문을 추가하거나 빼지 마세요.
 반드시 아래 블록 형식만 사용하세요. 다른 텍스트는 절대 추가하지 마세요.
+내용 규칙:
+- argument·method·significance는 제목과 초록에 실제로 있는 내용만 근거로 쓰세요. 초록에 없는 데이터, 국가, 기간, 분석 방법, 결과를 지어내지 마세요.
+- 초록이 "(NO ABSTRACT AVAILABLE)"이면 method는 "초록 미제공"으로 쓰고, argument는 제목에서 알 수 있는 연구 주제만 1문장으로 쓰며 "초록이 제공되지 않아 세부 내용은 원문 확인 필요"라고 덧붙이세요.
+- 섹션 주제에 맞추려고 논문 내용을 바꾸거나 과장하지 마세요.
 
 논문 목록:
 {paper_text}
@@ -415,6 +421,10 @@ url: DOI_URL (copy DOI_URL exactly from the paper list, do not alter)
 The papers below are already tagged by topic ({", ".join(f"[SECTION:{tid}]" for tid, _ in topics_present)}).
 Brief every paper listed under each section (the exact count per section is shown in the format below). Do not add or drop papers.
 Use only the block format below. No other text.
+Content rules:
+- Base argument, method, and significance only on what the title and abstract actually say. Never invent data, countries, time periods, methods, or findings that are not in the abstract.
+- If the abstract is "(NO ABSTRACT AVAILABLE)", write method as "abstract not provided", limit argument to one sentence on the topic evident from the title, and add "No abstract was provided; see the original article for details."
+- Do not reshape or exaggerate a paper to fit its section's theme.
 
 Papers:
 {paper_text}
@@ -729,7 +739,7 @@ def build_html_email(raw_summary, today_str, language="ko", allowed_topics=None)
     </div>
     <p class="footer-text" style="margin:16px 0 0;text-align:center;font-size:11.5px;
        line-height:1.6;color:#9CA3AF;font-family:{font_stack};">
-      PoliBot &nbsp;·&nbsp; Groq Qwen3.6 27B &nbsp;·&nbsp; Crossref API
+      PoliBot &nbsp;·&nbsp; Groq GPT-OSS 120B &nbsp;·&nbsp; Crossref API
       &nbsp;·&nbsp;
       <a href="https://shlee-95.github.io/politics/subscribe.html"
          style="color:#6B7280;text-decoration:underline;">{unsubscribe_text}</a>
